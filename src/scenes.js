@@ -534,11 +534,13 @@ function banner(text, width, color = '#3c8eea', drop = 5) {   // drop: von der M
  * Ein Gruppenfoto als Bildadresse (PNG, width × height, durchsichtig): bis zu zwölf Figuren, in Reihen; mit
  * opts.banner hält die Gruppe ein Banner mit diesem Text hinter sich hoch (opts.color: seine Farbe); opts.poses: je
  * Figur die id einer Pose (GROUP_POSES) oder einer Szene (SCENES: mit ihren Dingen), leer für die, die an der Reihe ist.
+ * opts.peek: alle in einer Reihe, nur Köpfe und Schultern, gerade von vorn: zum Hervorschauen über eine untere Kante
+ * (ein Banner); unten schneidet das Bild sie ab.
  */
 export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
   const people = inputs.slice(0, GROUP_PHOTO_MAX);
   const poses = people.map((_, i) => opts.poses?.[i] ?? '');
-  const k = `group:${width}x${height}:${opts.banner ?? ''}:${opts.color ?? ''}:${poses.join(',')}:${people.map((a) => A.key(a)).join('|')}`;
+  const k = `group:${width}x${height}:${opts.peek ? 'peek' : ''}:${opts.banner ?? ''}:${opts.color ?? ''}:${poses.join(',')}:${people.map((a) => A.key(a)).join('|')}`;
   if (shots.has(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = sceneRenderer();
@@ -546,7 +548,7 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
     const photo = new THREE.Group();
     // Bis vier in einer Reihe, bis acht in zwei, sonst drei; vorn die meisten. Jede Reihe dahinter steht eine Stufe
     // höher und auf Lücke, damit man alle Köpfe sieht.
-    const rows = people.length <= 4 ? 1 : people.length <= 8 ? 2 : 3;
+    const rows = opts.peek || people.length <= 4 ? 1 : people.length <= 8 ? 2 : 3;
     const counts = Array.from({ length: rows }, (_, r) => Math.ceil((people.length - r) / rows));
     const spots = [];
     counts.forEach((n, row) => {
@@ -561,9 +563,9 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
       b.group.position.set(at.x, at.y, at.z);
       b.group.rotation.y = -at.x * 0.07;                 // ein wenig zur Mitte gedreht
       photo.add(b.group);
-      if (!b.scene) { const s = shadow(); s.position.set(at.x, FEET + at.y + 0.005, at.z + 0.1); s.scale.setScalar(0.85); photo.add(s); }
+      if (!b.scene && !opts.peek) { const s = shadow(); s.position.set(at.x, FEET + at.y + 0.005, at.z + 0.1); s.scale.setScalar(0.85); photo.add(s); }
     });
-    if (opts.banner) {
+    if (opts.banner && !opts.peek) {
       // hinter der hinteren Reihe, über den Köpfen; so breit wie die Gruppe (mindestens für einen kurzen Namen)
       const xs = spots.map((s) => s.x), wide = Math.max(3.6, Math.max(...xs) - Math.min(...xs) + 2.2);
       const y = 2.0 + (rows - 1) * 1.55;
@@ -575,9 +577,17 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
     // Alle im Bild: ihre Umrisse, so groß wie es das Format erlaubt, ein wenig von oben (die hintere Reihe sieht man).
     const box = new THREE.Box3().setFromObject(photo), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
     const t = Math.tan(PI / 12), aspect = width / height;
-    const d = Math.max(s.y / 2 / t, s.x / 2 / (t * aspect)) * 1.06 + s.z / 2;
     camera.aspect = aspect; camera.updateProjectionMatrix();
-    camera.position.set(c.x, c.y + 1.2 + (rows - 1) * 0.5, c.z + d); camera.lookAt(c.x, c.y, c.z);
+    if (opts.peek) {
+      // Vom Scheitel (und was darüber ist) bis zur Brust, immer gleich hoch (das Format gibt die Breite: wer
+      // weit hinausragt, den schneidet der Rand); gerade von vorn.
+      const top = box.max.y + 0.1, tall = 3.1, y = top - tall / 2;
+      const d = tall / 2 / t + s.z / 2;
+      camera.position.set(c.x, y, c.z + d); camera.lookAt(c.x, y, c.z);
+    } else {
+      const d = Math.max(s.y / 2 / t, s.x / 2 / (t * aspect)) * 1.06 + s.z / 2;
+      camera.position.set(c.x, c.y + 1.2 + (rows - 1) * 0.5, c.z + d); camera.lookAt(c.x, c.y, c.z);
+    }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
     scene.remove(photo);
