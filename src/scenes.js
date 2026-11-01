@@ -411,6 +411,7 @@ export function buildScene(input, id) {
     built.group.updateMatrixWorld(true);
     const at = Object.fromEntries(Object.entries({ ...rig.ends, hips: rig.root }).map(([k, o]) => [k, built.group.worldToLocal(o.getWorldPosition(new THREE.Vector3()))]));
     for (const p of scene.props(at)) group.add(p);
+    group.userData.head = at.head;                      // für den nahen Ausschnitt
   });
   return { group, ready };
 }
@@ -430,9 +431,12 @@ function sceneRenderer() {
   return shot;
 }
 let queue = Promise.resolve();
-/** Eine Szene als Bildadresse (PNG, size × size, durchsichtiger Hintergrund): die ganze Figur mit ihren Dingen. */
-export function sceneSnapshot(input, id, size = 256) {
-  const k = `${id}:${size}:${A.key(input)}`;
+/**
+ * Eine Szene als Bildadresse (PNG, size × size, durchsichtiger Hintergrund): die ganze Figur mit ihren Dingen (full),
+ * oder nah, Kopf und Oberkörper mit dem, was um sie ist (close: für kleine Bilder, wo das Gesicht sonst verschwindet).
+ */
+export function sceneSnapshot(input, id, size = 256, frame = 'full') {
+  const k = `${id}:${size}:${frame}:${A.key(input)}`;
   if (shots.has(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = sceneRenderer();
@@ -441,7 +445,9 @@ export function sceneSnapshot(input, id, size = 256) {
     await ready;
     group.rotation.y = sceneOf(id)?.turn ?? -0.22;   // schräg: Sitzende von der Seite
     scene.add(group);
-    camera.position.set(0, -0.95, 11.8); camera.lookAt(0, -1, 0);
+    const head = group.userData.head?.y ?? 0;
+    if (frame === 'close') { camera.position.set(0, head - 0.25, 7); camera.lookAt(0, head - 0.3, 0); }
+    else { camera.position.set(0, -0.95, 11.8); camera.lookAt(0, -1, 0); }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
     scene.remove(group);

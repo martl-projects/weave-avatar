@@ -402,17 +402,18 @@ function snapshotRenderer() {
   return shot;
 }
 let queue = Promise.resolve();
-/** Die Figur als Bildadresse: head (Kopf) oder bust (bis zur Brust). */
+/** Die Figur als Bildadresse: head (Kopf mit Frisur und Hut), face (nah ans Gesicht, für kleine Bilder) oder bust (bis zur Brust). */
 export function snapshot(input, kind = 'head') {
   const k = kind + ':' + A.key(input);
   if (shots.has(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = snapshotRenderer();
-    const { group, ready } = buildAvatar(input, { bodyless: kind === 'head' });
+    const { group, ready } = buildAvatar(input, { bodyless: kind !== 'bust' });
     await ready;
-    group.rotation.y = -0.18;
+    group.rotation.y = kind === 'face' ? -0.1 : -0.18;
     scene.add(group);
     if (kind === 'head') { camera.position.set(0, 0.35, 8); camera.lookAt(0, 0.28, 0); }
+    else if (kind === 'face') { camera.position.set(0, 0.05, 5.3); camera.lookAt(0, 0.02, 0); }
     else { camera.position.set(0, -0.3, 8.4); camera.lookAt(0, -0.55, 0); }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
