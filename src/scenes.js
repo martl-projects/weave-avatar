@@ -534,8 +534,8 @@ function banner(text, width, color = '#3c8eea', drop = 5) {   // drop: von der M
  * Ein Gruppenfoto als Bildadresse (PNG, width × height, durchsichtig): bis zu zwölf Figuren, in Reihen; mit
  * opts.banner hält die Gruppe ein Banner mit diesem Text hinter sich hoch (opts.color: seine Farbe); opts.poses: je
  * Figur die id einer Pose (GROUP_POSES) oder einer Szene (SCENES: mit ihren Dingen), leer für die, die an der Reihe ist.
- * opts.peek: alle in einer Reihe, nur Köpfe und Schultern, gerade von vorn: zum Hervorschauen über eine untere Kante
- * (ein Banner); unten schneidet das Bild sie ab.
+ * opts.peek: alle in einer Reihe, gerade von vorn, vom Nabel an aufwärts: zum Hervorschauen über eine untere Kante
+ * (ein Banner). Das Format gibt die Breite: so breit, wie Leute da sind (wer weit hinausragt, den schneidet der Rand).
  */
 export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
   const people = inputs.slice(0, GROUP_PHOTO_MAX);
@@ -579,11 +579,15 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
     const t = Math.tan(PI / 12), aspect = width / height;
     camera.aspect = aspect; camera.updateProjectionMatrix();
     if (opts.peek) {
-      // Vom Scheitel (und was darüber ist) bis zur Brust, immer gleich hoch (das Format gibt die Breite: wer
-      // weit hinausragt, den schneidet der Rand); gerade von vorn.
-      const top = box.max.y + 0.1, tall = 3.1, y = top - tall / 2;
+      // Ein fester Horizont: unten schneidet das Bild jeden am Nabel, oben reicht es über die Köpfe (und was darüber
+      // schwebt). Mehr Leute machen niemanden kleiner: das Format wird breiter, die Kamera fasst mehr in der Breite.
+      // Passen nicht alle in die Breite, fasst die Kamera mehr (sie werden kleiner), der Nabel bleibt unten.
+      // (Ihre Breite aus ihren Plätzen: die Umrisse der Figuren zählen die Arme in der Grundhaltung mit.)
+      const xs = spots.map((p) => p.x), wide = Math.max(...xs) - Math.min(...xs) + 1.7;
+      const NAVEL = -2.05, top = Math.max(box.max.y, 1.35) + 0.12, tall = Math.max(top - NAVEL, wide / aspect), y = NAVEL + tall / 2;
       const d = tall / 2 / t + s.z / 2;
-      camera.position.set(c.x, y, c.z + d); camera.lookAt(c.x, y, c.z);
+      const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
+      camera.position.set(cx, y, c.z + d); camera.lookAt(cx, y, c.z);
     } else {
       const d = Math.max(s.y / 2 / t, s.x / 2 / (t * aspect)) * 1.06 + s.z / 2;
       camera.position.set(c.x, c.y + 1.2 + (rows - 1) * 0.5, c.z + d); camera.lookAt(c.x, c.y, c.z);
