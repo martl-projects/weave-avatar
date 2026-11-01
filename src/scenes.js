@@ -4,9 +4,11 @@
 //
 // Eine Szene: id (fest, für immer), label (englisch, für Auswahllisten), pose(rig) stellt Arme und Kopf (rig3d.js),
 // face: was sie am Gesicht ändert (Mund, Augen), props(at): die Dinge, in Figuren-Maßen (Kopfmitte 0, Füße bei FEET).
-// at: Lagen nach der Pose: Hände (handL, handR) und Kopfmitte (head), schon in Figuren-Maßen.
+// at: Lagen nach der Pose: Hände (handL, handR), Füße, Kopfmitte (head) und Hüfte (hips), schon in Figuren-Maßen.
+// Dinge: eine Glühbirne, Konfetti, ein Paket, Lupe und Marienkäfer, Tasse, Herz, Schraubenschlüssel, Bücher, ein Laptop,
+// ein Gamepad, ein Hocker, Mond und Sterne, Tiere (Katze, Hund, Vogel) und Pixel-Bilder aus Würfeln (Herz, Stern, Alien, Münze).
 import * as THREE from 'three';
-import { buildAvatar } from './avatar3d.js';
+import { buildAvatar, FEET } from './avatar3d.js';
 import { aimArm } from './rig3d.js';
 
 const A = window.Avatar;
@@ -134,6 +136,147 @@ function wrench() {
   return g;
 }
 
+// ── Bücher, Rechner, Tiere, Pixel
+
+function book(color = '#c4122f', open = false) {
+  const g = new THREE.Group(), cover = mat(color, { roughness: 0.7 }), paper = mat('#f7f1e1', { roughness: 0.9 });
+  if (!open) {
+    g.add(mesh(new THREE.BoxGeometry(0.9, 0.18, 0.62), cover));
+    g.add(mesh(new THREE.BoxGeometry(0.84, 0.14, 0.6), paper, 0.03, 0, 0));
+    return g;
+  }
+  // aufgeschlagen: zwei Hälften, leicht zueinander geneigt, mit Seiten und ein paar Zeilen
+  for (const s of [-1, 1]) {
+    const half = new THREE.Group(); half.rotation.z = s * -0.18;
+    half.add(mesh(new THREE.BoxGeometry(0.5, 0.03, 0.66), cover, s * 0.25, 0, 0));
+    half.add(mesh(new THREE.BoxGeometry(0.46, 0.05, 0.62), paper, s * 0.24, 0.035, 0));
+    for (let i = 0; i < 5; i++) half.add(mesh(new THREE.BoxGeometry(0.3, 0.005, 0.03), mat('#8a8a9a'), s * 0.24, 0.062, -0.2 + i * 0.1));
+    g.add(half);
+  }
+  return g;
+}
+
+function bookStack() {
+  const g = new THREE.Group(), colors = ['#3c8eea', '#c4122f', '#3ddc84', '#ffd23f'];
+  colors.forEach((c, i) => { const b = book(c); b.position.y = i * 0.19; b.rotation.y = (i % 2 ? 0.12 : -0.1) * (i + 1) * 0.6; b.scale.set(1.25, 1, 1.15); g.add(b); });
+  return g;
+}
+
+/** Ein Laptop, aufgeklappt: Code auf dem Bildschirm, das Weave-Zeichen auf dem Deckel. */
+function laptop() {
+  const g = new THREE.Group(), body = mat('#c9ccd3', { metalness: 0.5, roughness: 0.35 });
+  g.add(mesh(new THREE.BoxGeometry(1.1, 0.06, 0.75), body));
+  g.add(mesh(new THREE.BoxGeometry(0.95, 0.01, 0.42), mat('#2a2a3a'), 0, 0.035, 0.06));
+  const lid = new THREE.Group(); lid.position.set(0, 0.03, -0.37); lid.rotation.x = -0.32; g.add(lid);
+  lid.add(mesh(new THREE.BoxGeometry(1.1, 0.72, 0.04), body, 0, 0.36, 0));
+  lid.add(mesh(new THREE.PlaneGeometry(1.0, 0.62), mat('#10131c', { emissive: '#10131c' }), 0, 0.37, 0.022));
+  const code = ['#3ddc84', '#3ab7ff', '#ff8a3d', '#ffd23f', '#3ab7ff', '#9b5cff'];
+  code.forEach((c, i) => lid.add(mesh(new THREE.PlaneGeometry(0.18 + ((i * 37) % 5) * 0.08, 0.035), glow(c, 0.8), -0.32 + ((i * 3) % 4) * 0.05 + (0.18 + ((i * 37) % 5) * 0.08) / 2 - 0.09, 0.6 - i * 0.075, 0.023)));
+  // hinten: das Weave-Zeichen (zwei Fäden senkrecht, einer waagerecht)
+  for (const [x, c] of [[-0.12, '#000080'], [0.12, '#008080']]) lid.add(mesh(new THREE.BoxGeometry(0.08, 0.42, 0.01), mat(c), x, 0.36, -0.025));
+  lid.add(mesh(new THREE.BoxGeometry(0.42, 0.08, 0.01), mat('#c00000'), 0, 0.42, -0.03));
+  return g;
+}
+
+function gamepad() {
+  const g = new THREE.Group(), shell = mat('#2a2a3a', { roughness: 0.4 });
+  const pad = mesh(new THREE.CapsuleGeometry(0.16, 0.45, 6, 16), shell); pad.rotation.z = PI / 2; g.add(pad);
+  for (const s of [-1, 1]) g.add(mesh(new THREE.SphereGeometry(0.17, 16, 12), shell, s * 0.3, -0.08, 0));
+  g.add(mesh(new THREE.BoxGeometry(0.14, 0.04, 0.03), mat('#a3a8ae'), -0.22, 0.02, 0.15), mesh(new THREE.BoxGeometry(0.04, 0.14, 0.03), mat('#a3a8ae'), -0.22, 0.02, 0.15));
+  [['#ff3d6e', 0.27, 0.06], ['#3ddc84', 0.2, -0.01], ['#3ab7ff', 0.34, -0.01], ['#ffd23f', 0.27, -0.08]].forEach(([c, x, y]) => g.add(mesh(new THREE.SphereGeometry(0.035, 10, 8), glow(c, 0.4), x, y + 0.04, 0.15)));
+  return g;
+}
+
+function stool(height) {
+  const g = new THREE.Group(), wood = mat('#8f5c2c', { roughness: 0.7 });
+  g.add(mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 28), wood, 0, height - 0.05, 0));
+  for (let i = 0; i < 3; i++) { const t = (i / 3) * 2 * PI; const leg = mesh(new THREE.CylinderGeometry(0.05, 0.06, height - 0.1, 8), wood, Math.sin(t) * 0.38, (height - 0.1) / 2, Math.cos(t) * 0.38); g.add(leg); }
+  return g;
+}
+
+/** Eine sitzende Katze (Blick nach vorn). */
+function cat(color = '#ff8a3d') {
+  const g = new THREE.Group(), fur = mat(color, { roughness: 0.8 }), dark = mat(A.shade(color, 0.7), { roughness: 0.8 });
+  const body = mesh(new THREE.SphereGeometry(0.34, 20, 16), fur, 0, 0.3, 0); body.scale.set(1, 1.15, 0.95); g.add(body);
+  g.add(mesh(new THREE.SphereGeometry(0.27, 20, 16), fur, 0, 0.78, 0.06));
+  for (const s of [-1, 1]) {
+    const ear = mesh(new THREE.ConeGeometry(0.09, 0.18, 10), fur, s * 0.15, 1.0, 0.04); ear.rotation.z = -s * 0.25; g.add(ear);
+    g.add(mesh(new THREE.SphereGeometry(0.04, 10, 8), mat('#1b1b22'), s * 0.1, 0.82, 0.3));
+    g.add(mesh(new THREE.SphereGeometry(0.08, 12, 10), fur, s * 0.13, 0.04, 0.24));   // Pfoten
+    g.add(mesh(new THREE.BoxGeometry(0.16, 0.008, 0.008), dark, s * 0.17, 0.74, 0.3).rotateZ(s * 0.15));
+  }
+  g.add(mesh(new THREE.SphereGeometry(0.035, 10, 8), mat('#ff7a9a'), 0, 0.76, 0.33));
+  const tail = mesh(new THREE.TorusGeometry(0.3, 0.06, 8, 20, PI * 1.1), dark, 0.05, 0.08, -0.05); tail.rotation.set(PI / 2, 0, -0.3); g.add(tail);
+  for (let i = 0; i < 3; i++) g.add(mesh(new THREE.BoxGeometry(0.04, 0.2, 0.02), dark, -0.12 + i * 0.12, 0.42, 0.31));   // Streifen
+  return g;
+}
+
+/** Ein stehender Hund, nach rechts im Bild, wedelnd. */
+function dog(color = '#c8945a') {
+  const g = new THREE.Group(), fur = mat(color, { roughness: 0.8 }), dark = mat(A.shade(color, 0.6), { roughness: 0.8 });
+  const body = mesh(new THREE.SphereGeometry(0.36, 20, 16), fur, 0, 0.62, 0); body.scale.set(1.5, 0.95, 0.95); g.add(body);
+  for (const [x, z] of [[-0.35, 0.18], [-0.35, -0.18], [0.35, 0.18], [0.35, -0.18]]) g.add(mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.45, 10), fur, x, 0.23, z));
+  const head = new THREE.Group(); head.position.set(-0.62, 0.98, 0.05); g.add(head);
+  head.add(mesh(new THREE.SphereGeometry(0.27, 20, 16), fur));
+  const snout = mesh(new THREE.SphereGeometry(0.15, 14, 12), mat(A.shade(color, 1.15)), -0.2, -0.07, 0.08); snout.scale.set(1.2, 0.8, 1); head.add(snout);
+  head.add(mesh(new THREE.SphereGeometry(0.055, 10, 8), mat('#1b1b22'), -0.36, -0.03, 0.1));
+  for (const s of [-1, 1]) {
+    head.add(mesh(new THREE.SphereGeometry(0.035, 10, 8), mat('#1b1b22'), -0.12, 0.08, s * 0.17 + 0.06));
+    const ear = mesh(new THREE.SphereGeometry(0.12, 12, 10), dark, 0.05, 0.02, s * 0.25); ear.scale.set(0.6, 1.4, 0.4); ear.rotation.x = s * 0.3; head.add(ear);
+  }
+  const tongue = mesh(new THREE.SphereGeometry(0.06, 10, 8), mat('#ff6b8a'), -0.28, -0.2, 0.08); tongue.scale.set(1, 0.4, 1); head.add(tongue);
+  const tail = mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.4, 8), dark, 0.62, 0.9, 0); tail.rotation.z = -0.6; g.add(tail);
+  g.add(mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 20), mat('#c4122f'), -0.42, 0.82, 0.05).rotateY(PI / 2).rotateX(0.4));   // Halsband
+  return g;
+}
+
+/** Ein kleiner runder Vogel. */
+function bird(color = '#3ab7ff') {
+  const g = new THREE.Group(), feather = mat(color, { roughness: 0.6 });
+  const body = mesh(new THREE.SphereGeometry(0.18, 16, 12), feather); body.scale.set(1.15, 1, 1); g.add(body);
+  g.add(mesh(new THREE.SphereGeometry(0.12, 14, 10), mat('#f4f4f4'), 0.02, -0.04, 0.12));
+  g.add(mesh(new THREE.SphereGeometry(0.12, 14, 10), feather, 0, 0.17, 0.04));
+  const beak = mesh(new THREE.ConeGeometry(0.04, 0.1, 8), mat('#ff8a3d'), 0, 0.15, 0.17); beak.rotation.x = PI / 2; g.add(beak);
+  for (const s of [-1, 1]) {
+    g.add(mesh(new THREE.SphereGeometry(0.022, 8, 6), mat('#1b1b22'), s * 0.06, 0.2, 0.13));
+    const wing = mesh(new THREE.SphereGeometry(0.1, 12, 8), mat(A.shade(color, 0.75)), s * 0.17, 0.01, -0.02); wing.scale.set(0.35, 0.9, 1.1); wing.rotation.z = s * 0.4; g.add(wing);
+  }
+  const tail = mesh(new THREE.BoxGeometry(0.12, 0.02, 0.16), mat(A.shade(color, 0.75)), 0, -0.02, -0.22); tail.rotation.x = 0.4; g.add(tail);
+  return g;
+}
+
+// Pixel-Bilder als Würfel (wie Weaves kleine Sprites): X = Farbe 1, o = Farbe 2, . = leer.
+const PIXELS = {
+  heart: ['.XX.XX.', 'XoXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'],
+  star: ['...X...', '...X...', 'XXXXXXX', '.XXXXX.', '..XXX..', '.XX.XX.', 'X.....X'],
+  alien: ['..X...X..', '...XXX...', '..XXXXX..', '.XX.X.XX.', 'XXXXXXXXX', 'X.XXXXX.X', 'X.X...X.X', '...X.X...'],
+  coin: ['.XXX.', 'XooXX', 'XoXXX', 'XoXXX', '.XXX.'],
+};
+function pixels(name, color, second = '#ffffff', size = 0.12) {
+  const g = new THREE.Group(), rows = PIXELS[name], cube = new THREE.BoxGeometry(size, size, size);
+  rows.forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === '.') return;
+    g.add(mesh(cube, glow(c === 'o' ? second : color, 0.35), (x - (row.length - 1) / 2) * size, ((rows.length - 1) / 2 - y) * size, 0));
+  }));
+  return g;
+}
+
+function moon() {
+  const g = new THREE.Group();
+  const c = mesh(new THREE.TorusGeometry(0.3, 0.13, 12, 28, PI * 1.15), glow('#ffe9a0', 0.9)); c.rotation.z = PI * 0.55; g.add(c);
+  for (const [x, y, s] of [[0.7, 0.25, 1], [-0.6, -0.15, 0.7], [0.35, -0.55, 0.8], [1.1, -0.4, 0.6]]) {
+    const star = mesh(new THREE.OctahedronGeometry(0.08 * s), glow('#ffffff', 1)); star.position.set(x, y, 0); g.add(star);
+  }
+  return g;
+}
+
+// Sitzen: Oberschenkel waagerecht nach vorn, Unterschenkel hängen; die Hüfte so tief, dass die Füße am Boden bleiben.
+const SEAT = -3.1;    // Oberkante der Sitzfläche: unter den waagerechten Oberschenkeln
+function sit(rig) {
+  for (const s of ['L', 'R']) { rig.bones['thigh' + s].rotation.set(-PI / 2, 0, s === 'L' ? 0.08 : -0.08); rig.bones['shin' + s].rotation.set(PI / 2, 0, 0); }
+  rig.root.position.y -= 0.5;
+}
+
 /** Die Szenen. Ihre ids bleiben für immer; neue kommen hinten dazu. */
 export const SCENES = [
   {
@@ -196,6 +339,58 @@ export const SCENES = [
     face: { mouth: 25 },
     props: (at) => [place(wrench(), at.handR, 0, 0.35, 0.05, (o) => { o.rotation.z = -0.35; })],
   },
+  {
+    id: 'coding', label: 'Coding', turn: -0.75,
+    pose(rig) { sit(rig); both(rig, V(0.3, -0.75, 0.6), V(-0.1, -0.2, 1)); tilt(rig, 0.22); },
+    face: { mouth: 0 },
+    // Der Deckel zeigt zur Kamera: das Weave-Zeichen hinten drauf.
+    props: (at) => [stool(SEAT - FEET).translateY(FEET).translateZ(-0.15), place(laptop(), at.hips, 0, -0.02, 0.62, (o) => { o.rotation.y = PI; })],
+  },
+  {
+    id: 'late-night', label: 'Late night', turn: -0.75,
+    pose(rig) { sit(rig); both(rig, V(0.3, -0.75, 0.6), V(-0.1, -0.2, 1)); tilt(rig, 0.18, 0.1); },
+    face: { mouth: 30, eyes: 7 },
+    props: (at) => [stool(SEAT - FEET).translateY(FEET).translateZ(-0.15), place(laptop(), at.hips, 0, -0.02, 0.62, (o) => { o.rotation.y = PI; }), place(moon(), at.head, 1.5, 1.35, 0.2, (o) => { o.scale.setScalar(1.5); o.rotation.y = 0.75; }), place(mug(), V(0.95, FEET + 0.25, 0.5), 0, 0, 0)],
+  },
+  {
+    id: 'bookworm', label: 'Reading', turn: -0.65,
+    pose(rig) { sit(rig); both(rig, V(0.3, -0.6, 0.75), V(-0.25, 0.55, 0.8)); tilt(rig, 0.3); },
+    face: { mouth: 6 },
+    props: (at) => [place(bookStack(), V(0, FEET + 0.09, -0.1), 0, 0, 0), place(book('#3c8eea', true), mid(at.handL, at.handR), 0, 0.1, 0.12, (o) => { o.rotation.x = -1.05; })],
+  },
+  {
+    id: 'cozy', label: 'Cozy', turn: -0.6,
+    pose(rig) { sit(rig); arm(rig, 'R', V(0.3, -0.85, 0.35), V(-0.2, 0.45, 1)); arm(rig, 'L', V(-0.25, -0.7, 0.6), V(0.6, -0.2, 0.8)); tilt(rig, 0.12, -0.1); },
+    face: { mouth: 1, eyes: 8 },
+    props: (at) => [stool(SEAT - FEET).translateY(FEET).translateZ(-0.15), place(cat(), at.hips, -0.05, -0.05, 0.42, (o) => { o.scale.setScalar(0.8); }), place(mug(), at.handR, 0, 0.18, 0.1)],
+  },
+  {
+    id: 'good-dog', label: 'Good dog',
+    pose(rig) { arm(rig, 'R', V(0.6, -0.8, 0.2), V(0.6, -0.6, 0.5)); tilt(rig, 0.15, -0.2); },
+    face: { mouth: 2 },
+    props: () => [place(dog(), V(1.45, FEET, 0.45), 0, 0, 0, (o) => { o.rotation.y = 0.35; })],
+  },
+  {
+    id: 'bird-friend', label: 'Bird friends',
+    pose(rig) { arm(rig, 'L', V(-0.9, 0.35, 0.3), V(-0.35, 0.9, 0.3)); tilt(rig, -0.1, 0.18); },
+    face: { mouth: 1 },
+    props: (at) => [place(bird('#3ab7ff'), at.handL, 0, 0.3, 0, (o) => { o.rotation.y = 0.6; o.scale.setScalar(1.7); }), place(bird('#ffd23f'), at.head, 0.05, 1.3, 0.1, (o) => { o.rotation.y = -0.4; o.scale.setScalar(1.6); })],
+  },
+  {
+    id: 'gaming', label: 'Game night',
+    pose(rig) { both(rig, V(0.25, -0.7, 0.6), V(-0.35, 0.25, 1)); tilt(rig, 0.1); },
+    face: { mouth: 4 },
+    props: (at) => [place(gamepad(), mid(at.handL, at.handR), 0, 0.05, 0.12, (o) => { o.rotation.x = -0.5; }), place(pixels('alien', '#3ddc84'), at.head, -1.45, 0.55, 0, (o) => { o.rotation.z = 0.15; }), place(pixels('heart', '#ff3d6e'), at.head, 1.35, 0.15, 0, (o) => { o.scale.setScalar(0.8); o.rotation.z = -0.15; })],
+  },
+  {
+    id: 'level-up', label: 'Level up',
+    pose(rig) { both(rig, V(1, 0.75, 0.1), V(0.55, 1, 0)); tilt(rig, -0.15); },
+    face: { mouth: 2, eyes: 9 },
+    props: (at) => [
+      place(pixels('star', '#ffd23f'), at.head, 0, 1.75, 0),
+      ...[[-1.6, 0.3], [1.55, 0.55], [-1.25, -0.8], [1.3, -0.55]].map(([x, y]) => place(pixels('coin', '#ffcf3a', '#fff3b0', 0.09), at.head, x, y, 0, (o) => { o.rotation.y = x * 0.2; })),
+    ],
+  },
 ];
 export const sceneOf = (id) => SCENES.find((s) => s.id === id);
 
@@ -214,7 +409,7 @@ export function buildScene(input, id) {
     rig.rest();
     scene.pose(rig);
     built.group.updateMatrixWorld(true);
-    const at = Object.fromEntries(Object.entries(rig.ends).map(([k, o]) => [k, built.group.worldToLocal(o.getWorldPosition(new THREE.Vector3()))]));
+    const at = Object.fromEntries(Object.entries({ ...rig.ends, hips: rig.root }).map(([k, o]) => [k, built.group.worldToLocal(o.getWorldPosition(new THREE.Vector3()))]));
     for (const p of scene.props(at)) group.add(p);
   });
   return { group, ready };
@@ -244,7 +439,7 @@ export function sceneSnapshot(input, id, size = 256) {
     renderer.setSize(size, size, false);
     const { group, ready } = buildScene(input, id);
     await ready;
-    group.rotation.y = -0.22;
+    group.rotation.y = sceneOf(id)?.turn ?? -0.22;   // schräg: Sitzende von der Seite
     scene.add(group);
     camera.position.set(0, -0.95, 11.8); camera.lookAt(0, -1, 0);
     renderer.render(scene, camera);
