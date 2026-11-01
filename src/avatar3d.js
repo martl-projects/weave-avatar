@@ -412,9 +412,17 @@ export function snapshot(input, kind = 'head') {
     await ready;
     group.rotation.y = kind === 'face' ? -0.1 : -0.18;
     scene.add(group);
-    if (kind === 'head') { camera.position.set(0, 0.35, 8); camera.lookAt(0, 0.28, 0); }
-    else if (kind === 'face') { camera.position.set(0, 0.05, 5.3); camera.lookAt(0, 0.02, 0); }
-    else { camera.position.set(0, -0.3, 8.4); camera.lookAt(0, -0.55, 0); }
+    if (kind === 'bust') { camera.position.set(0, -0.3, 8.4); camera.lookAt(0, -0.55, 0); }
+    else {
+      // Mittig, wie der Kopf wirklich ist (Frisur, Hut, Drehung): seine Umrisse, nicht seine Mitte.
+      const box = new THREE.Box3().setFromObject(group), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+      group.position.x = -c.x;
+      const fit = (h, w) => (Math.max(h, w) / 2 / Math.tan(PI / 12)) * 1.08;
+      // face: vom Kinn bis über die Brauen, so breit wie der Kopf; head: alles mit Frisur und Hut
+      const top = kind === 'face' ? Math.min(box.max.y, 0.95) : box.max.y, y = (box.min.y + top) / 2;
+      camera.position.set(0, y, c.z + fit(top - box.min.y, s.x));
+      camera.lookAt(0, y, c.z);
+    }
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
     scene.remove(group);
