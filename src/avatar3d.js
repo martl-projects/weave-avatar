@@ -545,7 +545,9 @@ export function mountViewer(el) {
   const rim = new THREE.DirectionalLight(0xff3fd0, 1.2); rim.position.set(-4, 2, -4); scene.add(rim);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
   // Zoom: 0 die ganze Figur, 1 nah am Gesicht (Mausrad, oder zoom() von außen: ein Editor beim Gesicht); weich dahin.
-  const far = { z: 13.5, y: -0.6, look: -0.8 }, near = { z: 5.2, y: 0.1, look: 0.05 };
+  // Der Roboter der Agenten ist kleiner, sein Kopf tiefer (AGENT_JOINT.headY).
+  const FRAMES = { person: [{ z: 13.5, y: -0.6, look: -0.8 }, { z: 5.2, y: 0.1, look: 0.05 }], robot: [{ z: 10.5, y: -1.85, look: -2 }, { z: 5.2, y: AGENT_JOINT.headY + 0.1, look: AGENT_JOINT.headY + 0.05 }] };
+  let [far, near] = FRAMES.person;
   let zoom = 0, zoomTo = 0;
   const place = () => {
     const k = zoom * zoom * (3 - 2 * zoom);
@@ -576,6 +578,7 @@ export function mountViewer(el) {
   raf = requestAnimationFrame(loop);
   return {
     set(a, bounce) {
+      [far, near] = FRAMES[A.clean(a).head === 1 ? 'robot' : 'person']; place();
       const next = buildAvatar(a);
       next.ready.then(() => {
         if (current) { holder.remove(current); current.traverse((o) => { if (o.geometry && !o.userData.shared) o.geometry.dispose(); }); }
