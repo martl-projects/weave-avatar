@@ -484,3 +484,98 @@ export function sceneSnapshot(input, id, size = 256, frame = 'full') {
   shots.set(k, p);
   return p;
 }
+
+// ── Gruppenfoto: alle zusammen, vorn eine Reihe, dahinter (eine Stufe höher) die nächste, jede Figur in ihrer Pose
+// und mit einem Lächeln. Die Reihenfolge der Figuren bestimmt, wer wo steht; dieselbe Gruppe gibt dasselbe Foto.
+const PHOTO_POSES = [
+  (rig) => arm(rig, 'R', V(1, 0.3, 0.15), V(0.3, 1, 0.1)),                                // winken
+  (rig) => both(rig, V(0.7, -0.65, -0.15), V(-0.65, -0.25, 0.35)),                         // Hände in die Hüften
+  (rig) => both(rig, V(1, 0.7, 0.1), V(0.5, 1, 0)),                                        // jubeln
+  () => {},                                                                                // einfach dastehen
+  (rig) => { arm(rig, 'L', V(-1, 0.3, 0.15), V(-0.3, 1, 0.1)); tilt(rig, 0, 0.12); },      // links winken
+  (rig) => both(rig, V(0.3, -0.6, 0.75), V(-0.45, 0.2, 0.85)),                             // Hände vor dem Bauch
+];
+const SMILES = [{ mouth: 1, brows: 0 }, { mouth: 2, brows: 5 }, { mouth: 5, brows: 0 }, { mouth: 3, brows: 5 }, { mouth: 6, brows: 0 }];
+export const GROUP_PHOTO_MAX = 12;
+
+/** Ein Banner auf zwei Stangen, mit Text (der Name der Gruppe), so breit wie die Gruppe. */
+function banner(text, width, color = '#3c8eea', drop = 5) {   // drop: von der Mitte bis zum Boden
+  const g = new THREE.Group();
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 192;
+  const x = c.getContext('2d');
+  x.fillStyle = color; x.fillRect(0, 0, 1024, 192);
+  x.fillStyle = 'rgba(255,255,255,.9)'; x.fillRect(0, 12, 1024, 6); x.fillRect(0, 174, 1024, 6);
+  let px = 120;
+  x.font = `800 ${px}px "Segoe UI", system-ui, sans-serif`;
+  while (x.measureText(text).width > 940 && px > 40) { px -= 6; x.font = `800 ${px}px "Segoe UI", system-ui, sans-serif`; }
+  x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = 'rgba(0,0,0,.25)'; x.shadowOffsetY = 4; x.shadowBlur = 6;
+  x.fillText(text, 512, 100);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const h = width * (192 / 1024);
+  // leicht gewellt, wie Stoff
+  const geo = new THREE.PlaneGeometry(width, h, 24, 1), pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setZ(i, Math.sin((pos.getX(i) / width) * PI * 3) * 0.08);
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, side: THREE.DoubleSide })));
+  const wood = mat('#8f5c2c', { roughness: 0.7 });
+  for (const s of [-1, 1]) g.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, drop + h / 2, 10), wood, s * (width / 2 + 0.05), (h / 2 - drop) / 2, -0.02));
+  return g;
+}
+
+/**
+ * Ein Gruppenfoto als Bildadresse (PNG, width × height, durchsichtig): bis zu zwölf Figuren, in Reihen; mit
+ * opts.banner hält die Gruppe ein Banner mit diesem Text hinter sich hoch (opts.color: seine Farbe).
+ */
+export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
+  const people = inputs.slice(0, GROUP_PHOTO_MAX);
+  const k = `group:${width}x${height}:${opts.banner ?? ''}:${opts.color ?? ''}:${people.map((a) => A.key(a)).join('|')}`;
+  if (shots.has(k)) return shots.get(k);
+  const p = queue.then(async () => {
+    const { renderer, scene, camera } = sceneRenderer();
+    renderer.setSize(width, height, false);
+    const photo = new THREE.Group();
+    // Bis vier in einer Reihe, bis acht in zwei, sonst drei; vorn die meisten. Jede Reihe dahinter steht eine Stufe
+    // höher und auf Lücke, damit man alle Köpfe sieht.
+    const rows = people.length <= 4 ? 1 : people.length <= 8 ? 2 : 3;
+    const counts = Array.from({ length: rows }, (_, r) => Math.ceil((people.length - r) / rows));
+    const spots = [];
+    counts.forEach((n, row) => {
+      for (let j = 0; j < n; j++) spots.push({ x: (j - (n - 1) / 2) * 1.75 + (row % 2 && n === counts[0] ? 0.875 : 0), z: -row * 1.3, y: row * 1.55 });
+    });
+    const built = people.map((a, i) => buildAvatar({ ...A.clean(a), ...SMILES[i % SMILES.length] }));
+    await Promise.all(built.map((b) => b.ready));
+    built.forEach((b, i) => {
+      const at = spots[i];
+      if (b.rig) { b.rig.rest(); PHOTO_POSES[i % PHOTO_POSES.length](b.rig); }
+      b.group.position.set(at.x, at.y, at.z);
+      b.group.rotation.y = -at.x * 0.07;                 // ein wenig zur Mitte gedreht
+      const s = shadow(); s.position.set(at.x, FEET + at.y + 0.005, at.z + 0.1); s.scale.setScalar(0.85);
+      photo.add(b.group, s);
+    });
+    if (opts.banner) {
+      // hinter der hinteren Reihe, über den Köpfen; so breit wie die Gruppe (mindestens für einen kurzen Namen)
+      const xs = spots.map((s) => s.x), wide = Math.max(3.6, Math.max(...xs) - Math.min(...xs) + 2.2);
+      const y = 2.0 + (rows - 1) * 1.55;
+      const b = banner(String(opts.banner).slice(0, 40), wide, opts.color, y - FEET);
+      b.position.set((Math.max(...xs) + Math.min(...xs)) / 2, y, Math.min(...spots.map((s) => s.z)) - 0.9);
+      photo.add(b);
+    }
+    scene.add(photo);
+    // Alle im Bild: ihre Umrisse, so groß wie es das Format erlaubt, ein wenig von oben (die hintere Reihe sieht man).
+    const box = new THREE.Box3().setFromObject(photo), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+    const t = Math.tan(PI / 12), aspect = width / height;
+    const d = Math.max(s.y / 2 / t, s.x / 2 / (t * aspect)) * 1.06 + s.z / 2;
+    camera.aspect = aspect; camera.updateProjectionMatrix();
+    camera.position.set(c.x, c.y + 1.2 + (rows - 1) * 0.5, c.z + d); camera.lookAt(c.x, c.y, c.z);
+    renderer.render(scene, camera);
+    const url = renderer.domElement.toDataURL('image/png');
+    scene.remove(photo);
+    camera.aspect = 1; camera.updateProjectionMatrix();
+    photo.traverse((o) => { if (o.geometry && !o.userData.shared) o.geometry.dispose(); });
+    return url;
+  });
+  queue = p.catch(() => {});
+  shots.set(k, p);
+  return p;
+}
