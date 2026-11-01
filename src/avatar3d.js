@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { loadFaceSprites, drawFace } from './face-sprites.js';
-import { createRig, skinGeometry, bindMesh } from './rig3d.js';
+import { createRig, skinGeometry, skinAgent, bindMesh, AGENT_JOINT } from './rig3d.js';
 import { assetUrl, givenAsset } from './assets.js';
 import { shotCache } from './shots.js';
 
@@ -58,8 +58,8 @@ const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m)
 
 // ── Gesicht → Textur: Augen, Brauen und Mund als Sprites, Wangen und Bart als Zeichnung (avatar.js)
 export function faceTexture(a) {
-  const c = document.createElement('canvas'); c.width = c.height = 512;
   const screen = a.head === 1;
+  const c = document.createElement('canvas'); c.width = screen ? 768 : 512; c.height = 512;   // der Bildschirm des Roboters ist 3:2
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const svg = new Promise((resolve) => {
@@ -70,22 +70,22 @@ export function faceTexture(a) {
   });
   const ready = Promise.all([svg, loadFaceSprites().catch(() => false)]).then(([img, sprites]) => {
     const g = c.getContext('2d');
-    if (screen) { g.fillStyle = A.COLORS.screenColor[a.screenColor]; g.fillRect(0, 0, 512, 512); }
+    if (screen) { g.fillStyle = A.COLORS.screenColor[a.screenColor]; g.fillRect(0, 0, c.width, 512); g.translate((c.width - 512) / 2, 0); }
     if (sprites === false) { if (img) g.drawImage(img, 0, 0, 512, 512); }
     else drawFace(g, a, img);
-    if (screen) crt(g);
+    if (screen) { g.setTransform(1, 0, 0, 1, 0, 0); crt(g, c.width); }
     tex.needsUpdate = true;
   });
   return { tex, ready };
 }
 
 /** Wie eine alte Bildröhre: feine Zeilen, zu den Ecken dunkler. */
-function crt(g) {
+function crt(g, w) {
   g.fillStyle = 'rgba(0, 0, 0, 0.07)';
-  for (let y = 0; y < 512; y += 4) g.fillRect(0, y, 512, 2);
-  const v = g.createRadialGradient(256, 256, 150, 256, 256, 380);
+  for (let y = 0; y < 512; y += 4) g.fillRect(0, y, w, 2);
+  const v = g.createRadialGradient(w / 2, 256, 150, w / 2, 256, w / 2 + 124);
   v.addColorStop(0, 'rgba(0, 0, 0, 0)'); v.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
-  g.fillStyle = v; g.fillRect(0, 0, 512, 512);
+  g.fillStyle = v; g.fillRect(0, 0, w, 512);
 }
 
 // ── Oberteil als Textur um den Rumpf (Vorderseite in der Mitte)
@@ -257,16 +257,21 @@ export function buildAvatar(input, opts = {}) {
   const neck = mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.4, 16), skin);   // Hals, steckt im Kopf
   if (!opts.bodyless) {
     body = new THREE.Group(); group.add(body);
-    rig = createRig(); body.add(rig.root);
-    rig.bones.chest.add(neck); neck.position.set(0, -1.1, 0).sub(new THREE.Vector3(0, -1.62, 0.1));
+    rig = createRig(screen ? AGENT_JOINT : undefined); body.add(rig.root);
+    if (!screen) { rig.bones.chest.add(neck); neck.position.set(0, -1.1, 0).sub(new THREE.Vector3(0, -1.62, 0.1)); }
     group.userData.rig = rig;
   }
-  // Das Modell aus figure.glb; lädt es nicht, Kugelkopf und Körper aus Grundkörpern
-  const built = loadFigure().then(
+  // Das Modell aus figure.glb (ein Bildschirm: der Roboter aus agent.glb); lädt es nicht, Kugelkopf bzw. Kasten und
+  // Körper aus Grundkörpern
+  const built = (screen ? loadAgent() : loadFigure()).then(
     (parts) => {
-      if (screen) screenHead(head, a, face.tex);
-      else modelHead(head, [fitFace, fitHair], parts, shape, skin, face.tex);
-      if (a.hair && !screen) {
+      if (screen) {
+        agentHead(head, a, parts, face.tex);
+        if (body) { rig.bones.head.add(head); head.position.copy(rig.ends.head.position); agentBody(body, parts, a, rig); }
+        return;
+      }
+      modelHead(head, [fitFace, fitHair], parts, shape, skin, face.tex);
+      if (a.hair) {
         const name = `Hair${String(a.hair).padStart(2, '0')}`;
         head.add(shared(shapedPart(parts, name, shape), hm));
         fitHair.scale.multiply(hairBulk(parts, name));   // Hüte sitzen auf der Frisur, nicht in ihr
@@ -308,6 +313,35 @@ export function loadFigure() {
     return parts;
   });
   return figureParts;
+}
+
+// ── Der Roboter der Agenten aus avatar/agent.glb (tools/export-agent.py aus art/agent.fbx), in Figuren-Maßen:
+// AgentHead (Kopf mit Kopfhörern und Antennen, Kopfmitte bei 0), AgentScreen (der Bildschirm darin, 3:2, UVs von vorn),
+// AgentBody (Hals, Rumpf, Arme, Beine in der T-Pose; Skelett mit AGENT_JOINT, Gewichte: skinAgent).
+let agentParts = null;
+export function loadAgent() {
+  const bytes = givenAsset('agent.glb');
+  const loader = new GLTFLoader();
+  agentParts ??= (bytes ? loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '') : loader.loadAsync(assetUrl('agent.glb'))).then((gltf) => {
+    const parts = {};
+    gltf.scene.traverse((o) => { if (o.isMesh) parts[o.name] = o.geometry; });
+    if (!['AgentHead', 'AgentScreen', 'AgentBody'].every((k) => parts[k])) throw new Error('agent.glb: Teile fehlen');
+    return parts;
+  });
+  return agentParts;
+}
+
+/** Der Kopf des Roboters in der Rahmenfarbe; das Gesicht leuchtet auf seinem Bildschirm (wie screenHead). */
+function agentHead(head, a, parts, tex) {
+  tex.flipY = false; tex.needsUpdate = true;          // glTF-UVs: v = 0 ist oben
+  head.add(shared(parts.AgentHead, mat(A.COLORS.frameColor[a.frameColor], { roughness: 0.4, metalness: 0.15 })));
+  const glass = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 });
+  const screen = shared(parts.AgentScreen, glass); screen.castShadow = false; head.add(screen);
+  head.userData.face = screen;
+}
+
+function agentBody(g, parts, a, rig) {
+  g.add(bindMesh(rig, skinAgent(parts.AgentBody), mat(A.COLORS.frameColor[a.frameColor], { roughness: 0.4, metalness: 0.15 })));
 }
 
 // Der Modellkopf gegenüber der Kugel mit Kopfform 0 (1 × 1.05 × 0.97): Breite, Höhe, Tiefe des Gesichts (Nase, Brille);

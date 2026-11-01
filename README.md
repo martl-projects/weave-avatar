@@ -21,9 +21,10 @@ version: tag it here, then move the pin there.
 - `src/scenes.js`: the scenes (`SCENES`: id, label, pose, face, props), `buildScene()`, `sceneSnapshot()`. A scene's id
   stays forever; new ones come at the end.
 - `src/assets.js`: where the files come from (built in, or `avatar/` next to the modules).
-- `src/avatar/`: `figure.glb` (head, face layer, body, hair styles) and the face sprite sheets.
-- `art/` and `tools/`: their sources (`BaseBody.blend`, the sheets) and the scripts that make them
-  (`tools/export-figure.py` in Blender, `tools/prepare-face-sprites.py` with Pillow and NumPy).
+- `src/avatar/`: `figure.glb` (head, face layer, body, hair styles), `agent.glb` (the agents' robot: head, screen,
+  body) and the face sprite sheets.
+- `art/` and `tools/`: their sources (`BaseBody.blend`, `agent.fbx`, the sheets) and the scripts that make them
+  (`tools/export-figure.py` and `tools/export-agent.py` in Blender, `tools/prepare-face-sprites.py` with Pillow and NumPy).
 
 ## Build
 

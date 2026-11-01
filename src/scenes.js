@@ -279,11 +279,12 @@ function moon() {
   return g;
 }
 
-// Sitzen: Oberschenkel waagerecht nach vorn, Unterschenkel hängen; die Hüfte so tief, dass die Füße am Boden bleiben.
+// Sitzen: Oberschenkel waagerecht nach vorn, Unterschenkel hängen; die Hüfte so tief, dass die Füße am Boden bleiben
+// (um die Länge des Oberschenkels: das Hüftgelenk kommt dahin, wo das Knie war).
 const SEAT = -3.1;    // Oberkante der Sitzfläche: unter den waagerechten Oberschenkeln
 function sit(rig) {
   for (const s of ['L', 'R']) { rig.bones['thigh' + s].rotation.set(-PI / 2, 0, s === 'L' ? 0.08 : -0.08); rig.bones['shin' + s].rotation.set(PI / 2, 0, 0); }
-  rig.root.position.y -= 0.5;
+  rig.root.position.y -= rig.joint.hip.y - rig.joint.knee;
 }
 
 /** Die Szenen. Ihre ids bleiben für immer; neue kommen hinten dazu. */

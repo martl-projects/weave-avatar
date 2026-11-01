@@ -8,7 +8,6 @@
 //   recover(rig, sec)                      wieder aufstehen (weich in die Ruhelage)
 //   stepRagdolls(dt)                        jedes Bild aufrufen, nach allen anderen Animationen
 import * as THREE from 'three';
-import { JOINT } from './rig3d.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const DT = 1 / 120, GRAVITY = -45, DAMP = 0.992, ITER = 12, FRICTION = 0.55;
@@ -163,6 +162,6 @@ function stepRecover(s, dt) {
   r.t += dt;
   const k = Math.min(1, r.t / r.sec), e = k * k * (3 - 2 * k);
   for (const [bone, q] of rig.restPose) bone.quaternion.slerpQuaternions(r.from.get(bone), q, e);
-  rig.root.position.lerpVectors(r.hips, JOINT.hips, e);
+  rig.root.position.lerpVectors(r.hips, rig.joint.hips, e);
   if (k >= 1) { active.delete(s); rig.ragdoll = null; }
 }

@@ -17,6 +17,12 @@ export const JOINT = {
   shoulder: V(0.675, -1.325, 0.125), elbowX: 1.075, wristX: 1.475, handX: 1.725,
   hip: V(0.3, -2.47, 0.1), knee: -2.97, ankle: -3.47, foot: V(0.395, -3.6, 0.385),
 };
+/** Die Gelenke des Roboters der Agenten (agent.glb, tools/export-agent.py): kürzerer Rumpf, längere Beine. */
+export const AGENT_JOINT = {
+  hips: V(0, -1.96, 0.05), chest: V(0, -1.48, 0.05), neck: V(0, -0.91, 0.03),
+  shoulder: V(0.63, -1.22, 0.03), elbowX: 1.15, wristX: 1.43, handX: 1.79,
+  hip: V(0.36, -2.17, 0.05), knee: -2.82, ankle: -3.34, foot: V(0.43, -3.63, 0.19),
+};
 export const ARM_DOWN = THREE.MathUtils.degToRad(70);   // Ruhelage der Arme: so weit aus der Waagerechten nach unten
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -55,38 +61,68 @@ export function skinGeometry(geo, { neck = false } = {}) {
 }
 
 /**
- * Ein Skelett in der T-Pose. root (hips) gehört in dieselbe Gruppe wie die Formen; ends sind die Spitzen
- * (Hände, Füße, Kopfmitte) als Anker. rest(): Ruhelage mit hängenden Armen.
+ * Gewichte für den Körper des Roboters (AgentBody, ohne Kopf): starre Teile, die an den schmalen Stellen knicken –
+ * Schulterkugel, Mitte des Arms, Taille, Hüfte, Knie.
  */
-export function createRig() {
+export function skinAgent(geo) {
+  if (skinned.has(geo)) return geo;
+  const J = AGENT_JOINT, pos = geo.attributes.position, n = pos.count;
+  const index = new Uint16Array(n * 4), weight = new Float32Array(n * 4);
+  const set = (i, list) => { list.forEach(([b, w], k) => { index[i * 4 + k] = b; weight[i * 4 + k] = w; }); };
+  for (let i = 0; i < n; i++) {
+    const x = pos.getX(i), y = pos.getY(i), ax = Math.abs(x), R = x > 0;
+    const arm = y > -1.8 ? smooth(0.5, 0.58, ax) : 0;
+    if (arm > 0) {                                      // Arm: Brust → Schulter (mit der Kugel) → Ellbogen (mit der Hand)
+      const e = smooth(J.elbowX - 0.06, J.elbowX + 0.06, ax);
+      set(i, [[B.chest, 1 - arm], [R ? B.shoulderR : B.shoulderL, arm * (1 - e)], [R ? B.elbowR : B.elbowL, arm * e]]);
+    } else if (y < J.hips.y - 0.12) {                   // Bein: Becken → Oberschenkel → Unterschenkel mit Stiefel
+      const leg = smooth(J.hip.y + 0.05, J.hip.y - 0.12, y), k = smooth(J.knee + 0.02, J.knee - 0.08, y);
+      set(i, [[B.hips, 1 - leg], [R ? B.thighR : B.thighL, leg * (1 - k)], [R ? B.shinR : B.shinL, leg * k]]);
+    } else {                                            // Rumpf: Becken → Brust an der Taille; der Hals gehört zum Kopf
+      const c = smooth(J.hips.y + 0.02, J.hips.y + 0.14, y), h = ax < 0.3 ? smooth(J.neck.y - 0.08, J.neck.y - 0.02, y) : 0;
+      set(i, [[B.hips, 1 - c], [B.chest, c * (1 - h)], [B.head, c * h]]);
+    }
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(index, 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weight, 4));
+  skinned.add(geo);
+  return geo;
+}
+
+/**
+ * Ein Skelett in der T-Pose. root (hips) gehört in dieselbe Gruppe wie die Formen; ends sind die Spitzen
+ * (Hände, Füße, Kopfmitte) als Anker. rest(): Ruhelage mit hängenden Armen. J: die Gelenke (JOINT der Menschen,
+ * AGENT_JOINT des Roboters).
+ */
+export function createRig(J = JOINT) {
   const bone = (parent, at, from) => { const b = new THREE.Bone(); b.position.copy(at).sub(from); if (parent) parent.add(b); return b; };
   const O = V(0, 0, 0);
-  const hips = bone(null, JOINT.hips, O);
-  const chest = bone(hips, JOINT.chest, JOINT.hips);
-  const head = bone(chest, JOINT.neck, JOINT.chest);
-  const sh = (s) => V(s * JOINT.shoulder.x, JOINT.shoulder.y, JOINT.shoulder.z);
-  const shoulderL = bone(chest, sh(-1), JOINT.chest), shoulderR = bone(chest, sh(1), JOINT.chest);
-  const elbowL = bone(shoulderL, V(-JOINT.elbowX, 0, 0), V(-JOINT.shoulder.x, 0, 0));
-  const elbowR = bone(shoulderR, V(JOINT.elbowX, 0, 0), V(JOINT.shoulder.x, 0, 0));
-  const hipAt = (s) => V(s * JOINT.hip.x, JOINT.hip.y, JOINT.hip.z);
-  const thighL = bone(hips, hipAt(-1), JOINT.hips), thighR = bone(hips, hipAt(1), JOINT.hips);
-  const shinL = bone(thighL, V(0, JOINT.knee, 0), V(0, JOINT.hip.y, 0));
-  const shinR = bone(thighR, V(0, JOINT.knee, 0), V(0, JOINT.hip.y, 0));
+  const hips = bone(null, J.hips, O);
+  const chest = bone(hips, J.chest, J.hips);
+  const head = bone(chest, J.neck, J.chest);
+  const sh = (s) => V(s * J.shoulder.x, J.shoulder.y, J.shoulder.z);
+  const shoulderL = bone(chest, sh(-1), J.chest), shoulderR = bone(chest, sh(1), J.chest);
+  const elbowL = bone(shoulderL, V(-J.elbowX, 0, 0), V(-J.shoulder.x, 0, 0));
+  const elbowR = bone(shoulderR, V(J.elbowX, 0, 0), V(J.shoulder.x, 0, 0));
+  const hipAt = (s) => V(s * J.hip.x, J.hip.y, J.hip.z);
+  const thighL = bone(hips, hipAt(-1), J.hips), thighR = bone(hips, hipAt(1), J.hips);
+  const shinL = bone(thighL, V(0, J.knee, 0), V(0, J.hip.y, 0));
+  const shinR = bone(thighR, V(0, J.knee, 0), V(0, J.hip.y, 0));
   const anchor = (parent, at) => { const o = new THREE.Object3D(); o.position.copy(at); parent.add(o); return o; };
   const ends = {
-    handL: anchor(elbowL, V(-(JOINT.handX - JOINT.elbowX), 0, 0)), handR: anchor(elbowR, V(JOINT.handX - JOINT.elbowX, 0, 0)),
-    footL: anchor(shinL, V(-(JOINT.foot.x - JOINT.hip.x), JOINT.foot.y - JOINT.knee, JOINT.foot.z - JOINT.hip.z)),   // Mitte des Schuhs
-    footR: anchor(shinR, V(JOINT.foot.x - JOINT.hip.x, JOINT.foot.y - JOINT.knee, JOINT.foot.z - JOINT.hip.z)),
-    head: anchor(head, V(0, 0, 0).sub(JOINT.neck)),     // Kopfmitte
+    handL: anchor(elbowL, V(-(J.handX - J.elbowX), 0, 0)), handR: anchor(elbowR, V(J.handX - J.elbowX, 0, 0)),
+    footL: anchor(shinL, V(-(J.foot.x - J.hip.x), J.foot.y - J.knee, J.foot.z - J.hip.z)),   // Mitte des Schuhs
+    footR: anchor(shinR, V(J.foot.x - J.hip.x, J.foot.y - J.knee, J.foot.z - J.hip.z)),
+    head: anchor(head, V(0, 0, 0).sub(J.neck)),     // Kopfmitte
   };
   hips.updateMatrixWorld(true);                         // T-Pose merken, bevor das Skelett die Umkehrungen rechnet
   const bones = { hips, chest, head, shoulderL, elbowL, shoulderR, elbowR, thighL, shinL, thighR, shinR };
   const skeleton = new THREE.Skeleton(Object.keys(B).map((k) => bones[k]));
-  const rig = { root: hips, bones, ends, skeleton, ragdoll: null };
+  const rig = { root: hips, bones, ends, skeleton, ragdoll: null, joint: J };
   rig.restPose = new Map();
   rig.rest = () => {
     for (const b of Object.values(bones)) b.quaternion.identity();
-    hips.position.copy(JOINT.hips);
+    hips.position.copy(J.hips);
     shoulderL.rotation.set(0, 0, ARM_DOWN); shoulderR.rotation.set(0, 0, -ARM_DOWN);
     for (const b of Object.values(bones)) rig.restPose.set(b, b.quaternion.clone());
   };
