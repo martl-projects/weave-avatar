@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { loadFaceSprites, drawFace } from './face-sprites.js';
 import { createRig, skinGeometry, bindMesh } from './rig3d.js';
 import { assetUrl, givenAsset } from './assets.js';
+import { shotCache } from './shots.js';
 
 const A = window.Avatar;
 const { PI } = Math;
@@ -388,7 +389,7 @@ function primitiveBody(g, a, skinHex, skin) {
 
 // ── Kleine Bilder (Listen, Kopfzeile): einmal gerendert, dann gemerkt
 let shot = null;
-const shots = new Map();
+const shots = shotCache();
 function snapshotRenderer() {
   if (shot) return shot;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -405,7 +406,7 @@ let queue = Promise.resolve();
 /** Die Figur als Bildadresse: head (Kopf mit Frisur und Hut), face (nah ans Gesicht, für kleine Bilder) oder bust (bis zur Brust). */
 export function snapshot(input, kind = 'head') {
   const k = kind + ':' + A.key(input);
-  if (shots.has(k)) return shots.get(k);
+  if (shots.get(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = snapshotRenderer();
     const { group, ready } = buildAvatar(input, { bodyless: kind !== 'bust' });

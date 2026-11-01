@@ -10,6 +10,7 @@
 import * as THREE from 'three';
 import { buildAvatar, FEET } from './avatar3d.js';
 import { aimArm } from './rig3d.js';
+import { shotCache } from './shots.js';
 
 const A = window.Avatar;
 const { PI } = Math;
@@ -444,7 +445,7 @@ export function buildScene(input, id) {
 
 // ── Als Bild: einmal gerendert, dann gemerkt (wie snapshot in avatar3d.js)
 let shot = null;
-const shots = new Map();
+const shots = shotCache();
 function sceneRenderer() {
   if (shot) return shot;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -463,7 +464,7 @@ let queue = Promise.resolve();
  */
 export function sceneSnapshot(input, id, size = 256, frame = 'full') {
   const k = `${id}:${size}:${frame}:${A.key(input)}`;
-  if (shots.has(k)) return shots.get(k);
+  if (shots.get(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = sceneRenderer();
     renderer.setSize(size, size, false);
@@ -543,7 +544,7 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
   const people = inputs.slice(0, opts.peek ? GROUP_PEEK_MAX : GROUP_PHOTO_MAX);
   const poses = people.map((_, i) => opts.poses?.[i] ?? '');
   const k = `group:${width}x${height}:${opts.peek ? 'peek' : ''}:${opts.banner ?? ''}:${opts.color ?? ''}:${poses.join(',')}:${people.map((a) => A.key(a)).join('|')}`;
-  if (shots.has(k)) return shots.get(k);
+  if (shots.get(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = sceneRenderer();
     renderer.setSize(width, height, false);
