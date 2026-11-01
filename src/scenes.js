@@ -487,14 +487,21 @@ export function sceneSnapshot(input, id, size = 256, frame = 'full') {
 
 // ── Gruppenfoto: alle zusammen, vorn eine Reihe, dahinter (eine Stufe höher) die nächste, jede Figur in ihrer Pose
 // und mit einem Lächeln. Die Reihenfolge der Figuren bestimmt, wer wo steht; dieselbe Gruppe gibt dasselbe Foto.
-const PHOTO_POSES = [
-  (rig) => arm(rig, 'R', V(1, 0.3, 0.15), V(0.3, 1, 0.1)),                                // winken
-  (rig) => both(rig, V(0.7, -0.65, -0.15), V(-0.65, -0.25, 0.35)),                         // Hände in die Hüften
-  (rig) => both(rig, V(1, 0.7, 0.1), V(0.5, 1, 0)),                                        // jubeln
-  () => {},                                                                                // einfach dastehen
-  (rig) => { arm(rig, 'L', V(-1, 0.3, 0.15), V(-0.3, 1, 0.1)); tilt(rig, 0, 0.12); },      // links winken
-  (rig) => both(rig, V(0.3, -0.6, 0.75), V(-0.45, 0.2, 0.85)),                             // Hände vor dem Bauch
+// Die Posen: ihre ids bleiben für immer (eine Gruppe merkt sich, wer welche hat); ohne gewählte wechseln sie sich ab
+// (in dieser Reihenfolge).
+export const GROUP_POSES = [
+  { id: 'wave', label: 'Waving', pose: (rig) => arm(rig, 'R', V(1, 0.3, 0.15), V(0.3, 1, 0.1)) },
+  { id: 'hips', label: 'Hands on hips', pose: (rig) => both(rig, V(0.7, -0.65, -0.15), V(-0.65, -0.25, 0.35)) },
+  { id: 'cheer', label: 'Cheering', pose: (rig) => both(rig, V(1, 0.7, 0.1), V(0.5, 1, 0)) },
+  { id: 'stand', label: 'Standing', pose: () => {} },
+  { id: 'wave-left', label: 'Waving (left hand)', pose: (rig) => { arm(rig, 'L', V(-1, 0.3, 0.15), V(-0.3, 1, 0.1)); tilt(rig, 0, 0.12); } },
+  { id: 'hands', label: 'Hands together', pose: (rig) => both(rig, V(0.3, -0.6, 0.75), V(-0.45, 0.2, 0.85)) },
+  { id: 'crossed', label: 'Arms crossed', pose: (rig) => both(rig, V(0.35, -0.75, 0.45), V(-0.95, 0.12, 0.3)) },
+  { id: 'point', label: 'Pointing at you', pose: (rig) => { arm(rig, 'R', V(0.35, -0.15, 0.95), V(0.05, 0.05, 1)); tilt(rig, -0.05, -0.08); } },
+  { id: 'think', label: 'Thinking', pose: (rig) => { arm(rig, 'R', V(0.35, -0.75, 0.5), V(-0.35, 0.85, 0.45)); arm(rig, 'L', V(-0.25, -0.8, 0.5), V(0.55, 0.1, 0.8)); tilt(rig, -0.08, 0.1); } },
 ];
+const AUTO_POSES = ['wave', 'hips', 'cheer', 'stand', 'wave-left', 'hands'];
+const poseOf = (id, i) => (GROUP_POSES.find((p) => p.id === id) ?? GROUP_POSES.find((p) => p.id === AUTO_POSES[i % AUTO_POSES.length])).pose;
 const SMILES = [{ mouth: 1, brows: 0 }, { mouth: 2, brows: 5 }, { mouth: 5, brows: 0 }, { mouth: 3, brows: 5 }, { mouth: 6, brows: 0 }];
 export const GROUP_PHOTO_MAX = 12;
 
@@ -525,11 +532,13 @@ function banner(text, width, color = '#3c8eea', drop = 5) {   // drop: von der M
 
 /**
  * Ein Gruppenfoto als Bildadresse (PNG, width × height, durchsichtig): bis zu zwölf Figuren, in Reihen; mit
- * opts.banner hält die Gruppe ein Banner mit diesem Text hinter sich hoch (opts.color: seine Farbe).
+ * opts.banner hält die Gruppe ein Banner mit diesem Text hinter sich hoch (opts.color: seine Farbe); opts.poses: je
+ * Figur die id einer Pose (GROUP_POSES) oder einer Szene (SCENES: mit ihren Dingen), leer für die, die an der Reihe ist.
  */
 export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
   const people = inputs.slice(0, GROUP_PHOTO_MAX);
-  const k = `group:${width}x${height}:${opts.banner ?? ''}:${opts.color ?? ''}:${people.map((a) => A.key(a)).join('|')}`;
+  const poses = people.map((_, i) => opts.poses?.[i] ?? '');
+  const k = `group:${width}x${height}:${opts.banner ?? ''}:${opts.color ?? ''}:${poses.join(',')}:${people.map((a) => A.key(a)).join('|')}`;
   if (shots.has(k)) return shots.get(k);
   const p = queue.then(async () => {
     const { renderer, scene, camera } = sceneRenderer();
@@ -543,15 +552,16 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
     counts.forEach((n, row) => {
       for (let j = 0; j < n; j++) spots.push({ x: (j - (n - 1) / 2) * 1.75 + (row % 2 && n === counts[0] ? 0.875 : 0), z: -row * 1.3, y: row * 1.55 });
     });
-    const built = people.map((a, i) => buildAvatar({ ...A.clean(a), ...SMILES[i % SMILES.length] }));
+    // Eine Szene als Pose: die Figur mit ihren Dingen (und ihrem Schatten), wie in der Szene; sonst eine Foto-Pose.
+    const built = people.map((a, i) => (sceneOf(poses[i]) ? { ...buildScene(a, poses[i]), scene: true } : { ...buildAvatar({ ...A.clean(a), ...SMILES[i % SMILES.length] }), scene: false }));
     await Promise.all(built.map((b) => b.ready));
     built.forEach((b, i) => {
       const at = spots[i];
-      if (b.rig) { b.rig.rest(); PHOTO_POSES[i % PHOTO_POSES.length](b.rig); }
+      if (!b.scene && b.rig) { b.rig.rest(); poseOf(poses[i], i)(b.rig); }
       b.group.position.set(at.x, at.y, at.z);
       b.group.rotation.y = -at.x * 0.07;                 // ein wenig zur Mitte gedreht
-      const s = shadow(); s.position.set(at.x, FEET + at.y + 0.005, at.z + 0.1); s.scale.setScalar(0.85);
-      photo.add(b.group, s);
+      photo.add(b.group);
+      if (!b.scene) { const s = shadow(); s.position.set(at.x, FEET + at.y + 0.005, at.z + 0.1); s.scale.setScalar(0.85); photo.add(s); }
     });
     if (opts.banner) {
       // hinter der hinteren Reihe, über den Köpfen; so breit wie die Gruppe (mindestens für einen kurzen Namen)

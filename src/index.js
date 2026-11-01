@@ -20,4 +20,4 @@ provideAssets({
 export { Avatar };
 export { buildAvatar, snapshot, mountViewer, FEET } from './avatar3d.js';
 export { loadFaceSprites, thumb, partNames } from './face-sprites.js';
-export { SCENES, sceneOf, buildScene, sceneSnapshot, groupSnapshot, GROUP_PHOTO_MAX } from './scenes.js';
+export { SCENES, sceneOf, buildScene, sceneSnapshot, groupSnapshot, GROUP_PHOTO_MAX, GROUP_POSES } from './scenes.js';
