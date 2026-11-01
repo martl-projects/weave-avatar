@@ -91,11 +91,11 @@ function mouth(g, a, dx = 0, dy = 0, s = 1) {
 }
 
 /** Augen, Brauen und Mund auf die Gesichtstextur (Kontext eines 512er-Canvas). Vorher loadFaceSprites().
- *  between: was zwischen Mund und Augen kommt (Wangen und Bart aus faceSvg: ein Schnurrbart liegt über dem Mund). */
-export function drawFace(g, input, between) {
+ *  under: was unter allem liegt (Wangen und Bart aus faceSvg: der Bart lässt den Mund frei, der Mund liegt darüber). */
+export function drawFace(g, input, under) {
   const a = A.clean(input);
+  if (under) g.drawImage(under, 0, 0, 512, 512);
   mouth(g, a);
-  if (between) g.drawImage(between, 0, 0, 512, 512);
   eyes(g, a); brows(g, a);
 }
 

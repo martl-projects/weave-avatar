@@ -79,23 +79,32 @@
   }
 
   // ── Wangen und Bart als Zeichnung (200 × 200): so breit und hoch wie der Teil des Kopfs, auf dem sie liegen.
-  // Mitte x = 100. Augen, Brauen und Mund kommen als Sprites dazu (face-sprites.js).
-  function beard(type, color) {
-    const c = shade(color, 0.92);
+  // Mitte x = 100. Augen, Brauen und Mund kommen als Sprites dazu (face-sprites.js); der Mund liegt über dem Bart.
+  // Der Bart folgt dem Mund (m: seine Mitte, wie face-sprites.js ihn setzt: 342 px der 512er-Textur, 7 px je Stufe)
+  // und lässt ihn frei; weiche Ränder, damit er wie Haar wirkt und nicht wie eine Maske.
+  function beard(type, color, m) {
+    const c = shade(color, 0.9), dark = shade(color, 0.72);
+    // Breit und kräftig: auf dem Kopf wirkt die Zeichnung kleiner, als sie hier aussieht; zwischen Nase und Mund.
+    const stache = `<path d="M100,${m - 11} C90,${m - 20} 62,${m - 21} 50,${m - 5} C62,${m - 8} 84,${m - 1} 100,${m - 5} C116,${m - 1} 138,${m - 8} 150,${m - 5} C138,${m - 21} 110,${m - 20} 100,${m - 11}Z" fill="${dark}"/>`;
+    const soft = (d) => `<g filter="url(#soft)">${d}</g>`;
     return [
       '',
-      `<path d="M78,116 C86,106 96,108 100,113 C104,108 114,106 122,116 C114,119 107,119 100,116 C93,119 86,119 78,116Z" fill="${c}"/>`,
-      `<path d="M14,96 C20,150 56,200 100,200 C144,200 180,150 186,96 C176,116 158,112 140,114 C128,112 112,118 100,112 C88,118 72,112 60,114 C42,112 24,116 14,96Z M84,128 Q100,144 116,128 Q100,136 84,128Z" fill="${c}" fill-rule="evenodd"/>`,
-      `<path d="M88,140 C90,158 110,158 112,140 C105,145 95,145 88,140Z" fill="${c}"/>`,
+      soft(stache),
+      // Vollbart: von den Wangen ums Kinn, der Mund ausgespart, darüber der Schnurrbart
+      soft(`<path fill-rule="evenodd" fill="${c}" d="M10,${m - 40} C14,${m + 42} 54,199 100,199 C146,199 186,${m + 42} 190,${m - 40} C178,${m - 16} 158,${m - 12} 138,${m - 15} C124,${m - 17} 112,${m - 13} 100,${m - 13} C88,${m - 13} 76,${m - 17} 62,${m - 15} C42,${m - 12} 22,${m - 16} 10,${m - 40}Z M81,${m + 2} a19,12 0 1,0 38,0 a19,12 0 1,0 -38,0Z"/>${stache}`),
+      // Kinnbart: Schnurrbart, an den Mundwinkeln hinunter bis ums Kinn
+      soft(`${stache}<path fill="${c}" d="M56,${m - 7} C54,${m + 36} 80,${m + 54} 100,${m + 54} C120,${m + 54} 146,${m + 36} 144,${m - 7} C137,${m - 2} 135,${m + 15} 120,${m + 18} C112,${m + 20} 106,${m + 19} 100,${m + 19} C94,${m + 19} 88,${m + 20} 80,${m + 18} C65,${m + 15} 63,${m - 2} 56,${m - 7}Z"/>`),
     ][type];
   }
 
   /** Wangen und Bart als SVG, ohne Hintergrund. */
   function faceSvg(input, size) {
     const a = clean(input);
+    const m = (342 + offset(a, 'mouthY') * 7) / 2.56;
     const parts = [
+      '<defs><filter id="soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="0.9"/></filter></defs>',
       a.blush ? `<ellipse cx="46" cy="104" rx="13" ry="8" fill="#ff6b8a" opacity=".4"/><ellipse cx="154" cy="104" rx="13" ry="8" fill="#ff6b8a" opacity=".4"/>` : '',
-      beard(a.beard, HAIR[a.hairColor]),
+      beard(a.beard, HAIR[a.hairColor], m),
     ];
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size || 512}" height="${size || 512}">${parts.join('')}</svg>`;
   }

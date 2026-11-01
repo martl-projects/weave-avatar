@@ -437,17 +437,30 @@ export function mountViewer(el) {
   const sun = new THREE.DirectionalLight(0xffffff, 2.3); sun.position.set(3, 4, 6); scene.add(sun);
   const rim = new THREE.DirectionalLight(0xff3fd0, 1.2); rim.position.set(-4, 2, -4); scene.add(rim);
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
-  camera.position.set(0, -0.6, 13.5); camera.lookAt(0, -0.8, 0);
+  // Zoom: 0 die ganze Figur, 1 nah am Gesicht (Mausrad, oder zoom() von außen: ein Editor beim Gesicht); weich dahin.
+  const far = { z: 13.5, y: -0.6, look: -0.8 }, near = { z: 5.2, y: 0.1, look: 0.05 };
+  let zoom = 0, zoomTo = 0;
+  const place = () => {
+    const k = zoom * zoom * (3 - 2 * zoom);
+    // So nah, dass der Kopf mit Frisur (gut 2,6 breit) auch in eine schmale, hohe Ansicht passt.
+    const nearZ = Math.max(near.z, 1.3 / (Math.tan(PI / 12) * camera.aspect));
+    camera.position.set(0, far.y + (near.y - far.y) * k, far.z + (nearZ - far.z) * k);
+    camera.lookAt(0, far.look + (near.look - far.look) * k, 0);
+  };
+  place();
   const holder = new THREE.Group(); scene.add(holder);
   let current = null, yaw = 0, drag = null, lastInput = 0, raf = 0, hop = 0;
-  const size = () => { const w = el.clientWidth || 300, h = el.clientHeight || 300; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const size = () => { const w = el.clientWidth || 300, h = el.clientHeight || 300; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); place(); };
   new ResizeObserver(size).observe(el); size();
   el.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, yaw }; el.setPointerCapture(e.pointerId); });
   el.addEventListener('pointermove', (e) => { if (drag) { yaw = drag.yaw + (e.clientX - drag.x) * 0.012; lastInput = performance.now(); } });
   el.addEventListener('pointerup', () => { drag = null; });
+  // Das Rad zoomt hier, statt die Seite zu scrollen.
+  el.addEventListener('wheel', (e) => { e.preventDefault(); zoomTo = Math.min(1, Math.max(0, zoomTo - e.deltaY * 0.0015)); lastInput = performance.now(); }, { passive: false });
   const loop = (t) => {
     raf = requestAnimationFrame(loop);
     if (!drag && t - lastInput > 2500) yaw += (Math.sin(t / 1400) * 0.35 - yaw) * 0.03;
+    if (Math.abs(zoomTo - zoom) > 0.001) { zoom += (zoomTo - zoom) * 0.15; place(); }
     holder.rotation.y = yaw;
     const h = Math.max(0, 1 - (t - hop) / 350);
     holder.position.y = Math.sin(h * PI) * 0.25;
@@ -464,6 +477,8 @@ export function mountViewer(el) {
         renderer.render(scene, camera);
       });
     },
+    /** Näher heran (1: das Gesicht) oder zurück (0: die ganze Figur), weich. */
+    zoom(k) { zoomTo = Math.min(1, Math.max(0, k)); },
     dispose() { cancelAnimationFrame(raf); renderer.dispose(); el.replaceChildren(); },
   };
 }
