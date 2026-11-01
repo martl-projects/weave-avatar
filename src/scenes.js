@@ -28,7 +28,7 @@ const glow = (color, k = 0.9) => mat(color, { emissive: color, emissiveIntensity
 const arm = (rig, side, upper, fore) => aimArm(rig, side, upper, fore);
 const mirror = (v) => V(-v.x, v.y, v.z);
 const both = (rig, upper, fore) => { arm(rig, 'R', upper, fore); arm(rig, 'L', mirror(upper), mirror(fore)); };
-const tilt = (rig, x, z = 0) => rig.bones.head.rotation.set(x, 0, z);
+const tilt = (rig, x, z = 0, y = 0) => rig.bones.head.rotation.set(x, y, z);
 
 // ── Die Dinge
 function bulb() {
@@ -127,6 +127,14 @@ function heart(color = '#ff3d6e') {
   const geo = new THREE.ExtrudeGeometry(s, { depth: 0.18, bevelEnabled: true, bevelSize: 0.06, bevelThickness: 0.06, bevelSegments: 4, curveSegments: 16 });
   geo.center();
   return mesh(geo, glow(color, 0.45));
+}
+
+function gear(color = '#a3a8ae') {
+  const g = new THREE.Group(), steel = mat(color, { metalness: 0.6, roughness: 0.35 });
+  const ring = mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.14, 28), steel); ring.rotation.x = PI / 2; g.add(ring);
+  for (let i = 0; i < 8; i++) { const t = (i / 8) * 2 * PI; const tooth = mesh(new THREE.BoxGeometry(0.16, 0.16, 0.14), steel, Math.cos(t) * 0.38, Math.sin(t) * 0.38, 0); tooth.rotation.z = t; g.add(tooth); }
+  const hole = mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.16, 20), mat('#2a2a3a')); hole.rotation.x = PI / 2; g.add(hole);
+  return g;
 }
 
 function wrench() {
@@ -282,62 +290,62 @@ export const SCENES = [
   {
     id: 'idea', label: 'I had an idea',
     pose(rig) { arm(rig, 'R', V(0.85, 0.95, 0.2), V(0.25, 1, 0.1)); tilt(rig, -0.12, 0.08); },
-    face: { mouth: 3 },
-    props: (at) => [place(bulb(), at.head, 0.25, 1.62, 0.1)],
+    face: { mouth: 3, brows: 5 },
+    props: (at) => [place(bulb(), at.head, 1.0, 1.5, 0.3, (o) => { o.scale.setScalar(0.75); o.rotation.z = -0.3; })],   // schräg über dem Kopf, frei: nichts verdeckt sie, sie steckt in nichts
   },
   {
     id: 'celebrate', label: 'We did it',
     pose(rig) { both(rig, V(1, 0.75, 0.1), V(0.55, 1, 0)); tilt(rig, -0.15); },
-    face: { mouth: 2, eyes: 8 },
-    props: (at) => [place(confetti(), at.head, 0, 0, 0)],
+    face: { mouth: 2, eyes: 8, brows: 5 },
+    props: (at) => [place(confetti(), at.head, 0, -0.15, 0)],
   },
   {
     id: 'shipped', label: 'Shipped',
     pose(rig) { both(rig, V(0.2, -0.55, 0.85), V(-0.15, 0.25, 1)); },
-    face: { mouth: 4 },
-    props: (at) => [place(parcel(), mid(at.handL, at.handR), 0, 0.3, 0.15)],
+    face: { mouth: 4, brows: 25 },
+    props: (at) => [place(parcel(), mid(at.handL, at.handR), 0, -0.05, 0.2)],
   },
   {
     id: 'bug', label: 'Found a bug',
-    pose(rig) { arm(rig, 'R', V(0.4, -0.4, 0.85), V(-0.1, 0.5, 1)); tilt(rig, 0.25, 0.08); },
-    face: { mouth: 15 },
-    props: (at) => [place(magnifier(), at.handR, 0, 0.55, 0.1), place(ladybug(), at.head, -1.55, -2.1, 0.9, (o) => { o.rotation.set(0.5, 0.6, 0); })],
+    pose(rig) { arm(rig, 'R', V(0.45, -0.75, 0.5), V(0.35, -0.55, 0.75)); arm(rig, 'L', V(-0.3, -0.85, 0.3), V(0.1, -0.5, 0.8)); tilt(rig, 0.38, -0.12, -0.25); },
+    face: { mouth: 15, brows: 5, eyes: 23 },
+    props: (at) => [hold(magnifier(), 'handR', 0.8, 0, 0, (o) => { o.rotation.set(0, 0, -PI / 2); }), place(ladybug(), V(1.05, FEET, 0.55), 0, 0, 0, (o) => { o.rotation.y = -0.9; o.scale.setScalar(1.3); })],
   },
   {
     id: 'question', label: 'I have a question',
     pose(rig) { arm(rig, 'R', V(0.75, 0.55, 0.1), V(-0.55, 0.75, 0.1)); tilt(rig, 0, -0.18); },
-    face: { mouth: 13 },
-    props: (at) => [place(questionMark(), at.head, -1.25, 1.05, 0.2, (o) => { o.rotation.z = 0.2; })],
+    face: { mouth: 13, brows: 12 },
+    props: (at) => [place(questionMark(), at.head, -1.3, 0.95, 0.2, (o) => { o.rotation.z = 0.2; })],
   },
   {
     id: 'thinking', label: 'Thinking it over',
     pose(rig) { arm(rig, 'R', V(0.35, -0.75, 0.5), V(-0.35, 0.85, 0.45)); arm(rig, 'L', V(-0.25, -0.8, 0.5), V(0.55, 0.1, 0.8)); tilt(rig, -0.1, 0.12); },
-    face: { mouth: 24 },
-    props: (at) => [place(thought(), at.head, 0.85, 0.55, 0)],
+    face: { mouth: 24, brows: 10 },
+    props: (at) => [place(thought(), at.head, 0.85, 0.3, 0)],
   },
   {
     id: 'hello', label: 'Hello',
     pose(rig) { arm(rig, 'R', V(1, 0.3, 0.15), V(0.3, 1, 0.1)); tilt(rig, 0, -0.1); },
-    face: { mouth: 1 },
+    face: { mouth: 1, brows: 0 },
     props: () => [],
   },
   {
     id: 'coffee', label: 'Coffee break',
     pose(rig) { arm(rig, 'R', V(0.3, -0.85, 0.35), V(-0.2, 0.45, 1)); },
-    face: { mouth: 6 },
+    face: { mouth: 6, brows: 0 },
     props: (at) => [place(mug(), at.handR, 0, 0.18, 0.1)],
   },
   {
     id: 'thanks', label: 'Thank you',
     pose(rig) { both(rig, V(0.3, -0.5, 0.8), V(-0.35, 0.5, 0.8)); },
-    face: { mouth: 1, eyes: 8 },
-    props: (at) => [place(heart(), mid(at.handL, at.handR), 0, 0.15, 0.45)],
+    face: { mouth: 1, eyes: 8, brows: 0 },
+    props: (at) => [place(heart(), mid(at.handL, at.handR), 0, -0.2, 0.5, (o) => { o.scale.setScalar(0.85); })],
   },
   {
     id: 'fixing', label: 'Fixing it',
     pose(rig) { arm(rig, 'R', V(0.6, 0.1, 0.8), V(0.1, 0.9, 0.5)); tilt(rig, 0.1); },
-    face: { mouth: 25 },
-    props: (at) => [place(wrench(), at.handR, 0, 0.35, 0.05, (o) => { o.rotation.z = -0.35; })],
+    face: { mouth: 25, brows: 25 },
+    props: (at) => [place(wrench(), at.handR, 0, 0.35, 0.05, (o) => { o.rotation.z = -0.35; }), place(gear(), at.head, -1.35, 0.55, 0, (o) => { o.rotation.z = 0.2; }), place(gear('#ffd23f'), at.head, -1.0, 1.05, -0.1, (o) => { o.scale.setScalar(0.6); o.rotation.z = 0.5; })],
   },
   {
     id: 'coding', label: 'Coding', turn: -0.75,
@@ -349,45 +357,45 @@ export const SCENES = [
   {
     id: 'late-night', label: 'Late night', turn: -0.75,
     pose(rig) { sit(rig); both(rig, V(0.3, -0.75, 0.6), V(-0.1, -0.2, 1)); tilt(rig, 0.18, 0.1); },
-    face: { mouth: 30, eyes: 7 },
+    face: { mouth: 30, eyes: 7, brows: 14 },
     props: (at) => [stool(SEAT - FEET).translateY(FEET).translateZ(-0.15), place(laptop(), at.hips, 0, -0.02, 0.62, (o) => { o.rotation.y = PI; }), place(moon(), at.head, 1.5, 1.35, 0.2, (o) => { o.scale.setScalar(1.5); o.rotation.y = 0.75; }), place(mug(), V(0.95, FEET + 0.25, 0.5), 0, 0, 0)],
   },
   {
     id: 'bookworm', label: 'Reading', turn: -0.65,
     pose(rig) { sit(rig); both(rig, V(0.3, -0.6, 0.75), V(-0.25, 0.55, 0.8)); tilt(rig, 0.3); },
-    face: { mouth: 6 },
+    face: { mouth: 6, brows: 0 },
     props: (at) => [place(bookStack(), V(0, FEET + 0.09, -0.1), 0, 0, 0), place(book('#3c8eea', true), mid(at.handL, at.handR), 0, 0.1, 0.12, (o) => { o.rotation.x = -1.05; })],
   },
   {
     id: 'cozy', label: 'Cozy', turn: -0.6,
-    pose(rig) { sit(rig); arm(rig, 'R', V(0.3, -0.85, 0.35), V(-0.2, 0.45, 1)); arm(rig, 'L', V(-0.25, -0.7, 0.6), V(0.6, -0.2, 0.8)); tilt(rig, 0.12, -0.1); },
-    face: { mouth: 1, eyes: 8 },
+    pose(rig) { sit(rig); arm(rig, 'R', V(0.6, -0.75, 0.3), V(0.45, 0.25, 1)); arm(rig, 'L', V(-0.25, -0.7, 0.6), V(0.6, -0.2, 0.8)); tilt(rig, 0.2, -0.05); },
+    face: { mouth: 1, eyes: 8, brows: 0 },
     props: (at) => [stool(SEAT - FEET).translateY(FEET).translateZ(-0.15), place(cat(), at.hips, -0.05, -0.05, 0.42, (o) => { o.scale.setScalar(0.8); }), place(mug(), at.handR, 0, 0.18, 0.1)],
   },
   {
     id: 'good-dog', label: 'Good dog',
-    pose(rig) { arm(rig, 'R', V(0.6, -0.8, 0.2), V(0.6, -0.6, 0.5)); tilt(rig, 0.15, -0.2); },
-    face: { mouth: 2 },
-    props: () => [place(dog(), V(1.45, FEET, 0.45), 0, 0, 0, (o) => { o.rotation.y = 0.35; })],
+    pose(rig) { arm(rig, 'R', V(0.55, -0.85, 0.2), V(0.45, -0.8, 0.45)); tilt(rig, 0.3, -0.15, -0.3); },
+    face: { mouth: 2, brows: 0 },
+    props: () => [place(dog(), V(1.5, FEET, 0.55), 0, 0, 0, (o) => { o.rotation.y = 0.25; })],
   },
   {
     id: 'bird-friend', label: 'Bird friends',
     pose(rig) { arm(rig, 'L', V(-0.9, 0.35, 0.3), V(-0.35, 0.9, 0.3)); tilt(rig, -0.1, 0.18); },
-    face: { mouth: 1 },
-    props: (at) => [place(bird('#3ab7ff'), at.handL, 0, 0.3, 0, (o) => { o.rotation.y = 0.6; o.scale.setScalar(1.7); }), place(bird('#ffd23f'), at.head, 0.05, 1.3, 0.1, (o) => { o.rotation.y = -0.4; o.scale.setScalar(1.6); })],
+    face: { mouth: 1, brows: 5 },
+    props: (at) => [place(bird('#3ab7ff'), at.handL, 0, 0.3, 0, (o) => { o.rotation.y = 0.6; o.scale.setScalar(1.7); }), place(bird('#ffd23f'), at.head, 0.05, 1.45, 0.1, (o) => { o.rotation.y = -0.4; o.scale.setScalar(1.6); })],
   },
   {
     id: 'gaming', label: 'Game night',
     pose(rig) { both(rig, V(0.25, -0.7, 0.6), V(-0.35, 0.25, 1)); tilt(rig, 0.1); },
-    face: { mouth: 4 },
+    face: { mouth: 4, brows: 25 },
     props: (at) => [place(gamepad(), mid(at.handL, at.handR), 0, 0.05, 0.12, (o) => { o.rotation.x = -0.5; }), place(pixels('alien', '#3ddc84'), at.head, -1.45, 0.55, 0, (o) => { o.rotation.z = 0.15; }), place(pixels('heart', '#ff3d6e'), at.head, 1.35, 0.15, 0, (o) => { o.scale.setScalar(0.8); o.rotation.z = -0.15; })],
   },
   {
     id: 'level-up', label: 'Level up',
     pose(rig) { both(rig, V(1, 0.75, 0.1), V(0.55, 1, 0)); tilt(rig, -0.15); },
-    face: { mouth: 2, eyes: 9 },
+    face: { mouth: 2, eyes: 9, brows: 5 },
     props: (at) => [
-      place(pixels('star', '#ffd23f'), at.head, 0, 1.75, 0),
+      place(pixels('star', '#ffd23f'), at.head, 0, 1.5, 0),
       ...[[-1.6, 0.3], [1.55, 0.55], [-1.25, -0.8], [1.3, -0.55]].map(([x, y]) => place(pixels('coin', '#ffcf3a', '#fff3b0', 0.09), at.head, x, y, 0, (o) => { o.rotation.y = x * 0.2; })),
     ],
   },
@@ -395,7 +403,24 @@ export const SCENES = [
 export const sceneOf = (id) => SCENES.find((s) => s.id === id);
 
 const mid = (a, b) => a.clone().add(b).multiplyScalar(0.5);
+
+/** Ein weicher Schatten unter der Figur (und ihren Dingen am Boden): von der Mitte nach außen heller. */
+let shadowMap = null;
+function shadow() {
+  if (!shadowMap) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d'), grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(20,10,30,0.32)'); grad.addColorStop(0.6, 'rgba(20,10,30,0.14)'); grad.addColorStop(1, 'rgba(20,10,30,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+    shadowMap = new THREE.CanvasTexture(c);
+  }
+  const o = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.5), new THREE.MeshBasicMaterial({ map: shadowMap, transparent: true, depthWrite: false }));
+  o.rotation.x = -PI / 2; o.position.set(0.15, FEET + 0.005, 0.15); o.renderOrder = -1;
+  return o;
+}
 function place(o, at, x, y, z, more) { o.position.copy(at).add(V(x, y, z)); if (more) more(o); return o; }
+/** In der Hand (oder an einem anderen Ende des Skeletts): geht mit dem Arm mit; x läuft längs des Unterarms. */
+function hold(o, end, x, y, z, more) { o.position.set(x, y, z); o.userData.hold = end; if (more) more(o); return o; }
 
 /** Die Figur in einer Szene, mit ihren Dingen; ready, wenn sie gezeichnet werden kann. */
 export function buildScene(input, id) {
@@ -410,7 +435,8 @@ export function buildScene(input, id) {
     scene.pose(rig);
     built.group.updateMatrixWorld(true);
     const at = Object.fromEntries(Object.entries({ ...rig.ends, hips: rig.root }).map(([k, o]) => [k, built.group.worldToLocal(o.getWorldPosition(new THREE.Vector3()))]));
-    for (const p of scene.props(at)) group.add(p);
+    for (const p of scene.props(at)) (p.userData.hold ? rig.ends[p.userData.hold] : group).add(p);
+    group.add(shadow());
     group.userData.head = at.head;                      // für den nahen Ausschnitt
   });
   return { group, ready };
