@@ -291,7 +291,7 @@ export const SCENES = [
     id: 'idea', label: 'I had an idea',
     pose(rig) { arm(rig, 'R', V(0.85, 0.95, 0.2), V(0.25, 1, 0.1)); tilt(rig, -0.12, 0.08); },
     face: { mouth: 3, brows: 5 },
-    props: (at) => [place(bulb(), at.head, 1.0, 1.5, 0.3, (o) => { o.scale.setScalar(0.75); o.rotation.z = -0.3; })],   // schräg über dem Kopf, frei: nichts verdeckt sie, sie steckt in nichts
+    props: (at) => [place(bulb(), at.head, 1.05, 1.25, 0.3, (o) => { o.scale.setScalar(0.75); o.rotation.z = -0.3; })],   // schräg über dem Kopf, frei: nichts verdeckt sie, sie steckt in nichts
   },
   {
     id: 'celebrate', label: 'We did it',
