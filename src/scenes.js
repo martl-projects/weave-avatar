@@ -504,6 +504,8 @@ const AUTO_POSES = ['wave', 'hips', 'cheer', 'stand', 'wave-left', 'hands'];
 const poseOf = (id, i) => (GROUP_POSES.find((p) => p.id === id) ?? GROUP_POSES.find((p) => p.id === AUTO_POSES[i % AUTO_POSES.length])).pose;
 const SMILES = [{ mouth: 1, brows: 0 }, { mouth: 2, brows: 5 }, { mouth: 5, brows: 0 }, { mouth: 3, brows: 5 }, { mouth: 6, brows: 0 }];
 export const GROUP_PHOTO_MAX = 12;
+/** Peeking over a banner's edge, in up to three tight rows: more fit. */
+export const GROUP_PEEK_MAX = 36;
 
 /** Ein Banner auf zwei Stangen, mit Text (der Name der Gruppe), so breit wie die Gruppe. */
 function banner(text, width, color = '#3c8eea', drop = 5) {   // drop: von der Mitte bis zum Boden
@@ -538,7 +540,7 @@ function banner(text, width, color = '#3c8eea', drop = 5) {   // drop: von der M
  * (ein Banner). Das Format gibt die Breite: so breit, wie Leute da sind (wer weit hinausragt, den schneidet der Rand).
  */
 export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
-  const people = inputs.slice(0, GROUP_PHOTO_MAX);
+  const people = inputs.slice(0, opts.peek ? GROUP_PEEK_MAX : GROUP_PHOTO_MAX);
   const poses = people.map((_, i) => opts.poses?.[i] ?? '');
   const k = `group:${width}x${height}:${opts.peek ? 'peek' : ''}:${opts.banner ?? ''}:${opts.color ?? ''}:${poses.join(',')}:${people.map((a) => A.key(a)).join('|')}`;
   if (shots.has(k)) return shots.get(k);
@@ -548,11 +550,28 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
     const photo = new THREE.Group();
     // Bis vier in einer Reihe, bis acht in zwei, sonst drei; vorn die meisten. Jede Reihe dahinter steht eine Stufe
     // höher und auf Lücke, damit man alle Köpfe sieht.
-    const rows = opts.peek || people.length <= 4 ? 1 : people.length <= 8 ? 2 : 3;
-    const counts = Array.from({ length: rows }, (_, r) => Math.ceil((people.length - r) / rows));
+    // Hervorschauen (peek): eng, Schulter an Schulter; so viele in einer Reihe, wie das Format bei fester Höhe fasst,
+    // dann eine Reihe dahinter (höher, auf Lücke: ihre Köpfe über denen davor), dann eine dritte. Volle Reihen reichen
+    // genau von Rand zu Rand; jede Reihe steht in einem leichten V (die Mitte vorn).
+    const NAVEL = -2.05, peekTop = (n) => 1.5 + (n - 1) * 0.8, aspect0 = width / height;
+    const fits = (n) => Math.max(1, Math.floor((aspect0 * (peekTop(n) - NAVEL) - 1.5) / 1.3) + 1);
+    let rows = people.length <= 4 ? 1 : people.length <= 8 ? 2 : 3;
+    if (opts.peek) { rows = 1; while (rows < 3 && people.length > rows * fits(rows)) rows++; }
+    const perRow = opts.peek ? Math.max(Math.ceil(people.length / rows), Math.min(fits(rows), people.length)) : 0;
+    // Volle Reihen genau bis an den Rand (eine halbe Figur Luft); sonst Schulter an Schulter.
+    const edge = aspect0 * (peekTop(rows) - NAVEL) - 1.5;
+    const gap = opts.peek ? (people.length >= perRow && perRow > 1 ? Math.min(1.45, edge / (perRow - 1)) : 1.3) : 1.75;
+    // Hervorschauen: die vorderen Reihen voll bis an den Rand, die letzte nimmt den Rest; sonst gleich verteilt.
+    const counts = opts.peek
+      ? Array.from({ length: rows }, (_, r) => Math.max(0, Math.min(perRow, people.length - r * perRow)))
+      : Array.from({ length: rows }, (_, r) => Math.ceil((people.length - r) / rows));
     const spots = [];
     counts.forEach((n, row) => {
-      for (let j = 0; j < n; j++) spots.push({ x: (j - (n - 1) / 2) * 1.75 + (row % 2 && n === counts[0] ? 0.875 : 0), z: -row * 1.3, y: row * 1.55 });
+      for (let j = 0; j < n; j++) {
+        const x = (j - (n - 1) / 2) * gap + (row % 2 && n === counts[0] ? gap / 2 : 0);
+        const v = Math.abs(j - (n - 1) / 2) * 0.16;          // das V: nach außen ein wenig zurück
+        spots.push(opts.peek ? { x, z: -row * 0.95 - v, y: row * 0.8 } : { x, z: -row * 1.3, y: row * 1.55 });
+      }
     });
     // Eine Szene als Pose: die Figur mit ihren Dingen (und ihrem Schatten), wie in der Szene; sonst eine Foto-Pose.
     const built = people.map((a, i) => (sceneOf(poses[i]) ? { ...buildScene(a, poses[i]), scene: true } : { ...buildAvatar({ ...A.clean(a), ...SMILES[i % SMILES.length] }), scene: false }));
@@ -561,7 +580,7 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
       const at = spots[i];
       if (!b.scene && b.rig) { b.rig.rest(); poseOf(poses[i], i)(b.rig); }
       b.group.position.set(at.x, at.y, at.z);
-      b.group.rotation.y = -at.x * 0.07;                 // ein wenig zur Mitte gedreht
+      b.group.rotation.y = -at.x * (opts.peek ? 0.03 : 0.07);   // ein wenig zur Mitte gedreht
       photo.add(b.group);
       if (!b.scene && !opts.peek) { const s = shadow(); s.position.set(at.x, FEET + at.y + 0.005, at.z + 0.1); s.scale.setScalar(0.85); photo.add(s); }
     });
@@ -583,11 +602,12 @@ export function groupSnapshot(inputs, width = 512, height = 288, opts = {}) {
       // schwebt). Mehr Leute machen niemanden kleiner: das Format wird breiter, die Kamera fasst mehr in der Breite.
       // Passen nicht alle in die Breite, fasst die Kamera mehr (sie werden kleiner), der Nabel bleibt unten.
       // (Ihre Breite aus ihren Plätzen: die Umrisse der Figuren zählen die Arme in der Grundhaltung mit.)
-      const xs = spots.map((p) => p.x), wide = Math.max(...xs) - Math.min(...xs) + 1.7;
-      const NAVEL = -2.05, top = Math.max(box.max.y, 1.35) + 0.12, tall = Math.max(top - NAVEL, wide / aspect), y = NAVEL + tall / 2;
-      const d = tall / 2 / t + s.z / 2;
+      const xs = spots.map((p) => p.x), wide = Math.max(...xs) - Math.min(...xs) + 1.5;
+      // Oben: die Köpfe der hintersten Reihe mit etwas Luft (fest: hochgestreckte Arme und Dinge darüber zählen nicht).
+      const top = peekTop(rows), tall = Math.max(top - NAVEL, wide / aspect), y = NAVEL + tall / 2;
+      const d = tall / 2 / t + 0.6;                     // bis zur vorderen Reihe (ihre Brust), nicht bis zu Umrissen
       const cx = (Math.max(...xs) + Math.min(...xs)) / 2;
-      camera.position.set(cx, y, c.z + d); camera.lookAt(cx, y, c.z);
+      camera.position.set(cx, y, d); camera.lookAt(cx, y, 0);
     } else {
       const d = Math.max(s.y / 2 / t, s.x / 2 / (t * aspect)) * 1.06 + s.z / 2;
       camera.position.set(c.x, c.y + 1.2 + (rows - 1) * 0.5, c.z + d); camera.lookAt(c.x, c.y, c.z);
