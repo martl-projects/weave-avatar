@@ -138,13 +138,13 @@ function wrench() {
 export const SCENES = [
   {
     id: 'idea', label: 'I had an idea',
-    pose(rig) { arm(rig, 'R', V(0.45, 1, 0.15), V(0.05, 1, 0.1)); tilt(rig, -0.12); },
+    pose(rig) { arm(rig, 'R', V(0.85, 0.95, 0.2), V(0.25, 1, 0.1)); tilt(rig, -0.12, 0.08); },
     face: { mouth: 3 },
-    props: (at) => [place(bulb(), at.head, 0.15, 2.05, 0.1)],
+    props: (at) => [place(bulb(), at.head, 0.25, 1.62, 0.1)],
   },
   {
     id: 'celebrate', label: 'We did it',
-    pose(rig) { both(rig, V(0.75, 0.85, 0.1), V(0.35, 1, 0.1)); tilt(rig, -0.15); },
+    pose(rig) { both(rig, V(1, 0.75, 0.1), V(0.55, 1, 0)); tilt(rig, -0.15); },
     face: { mouth: 2, eyes: 8 },
     props: (at) => [place(confetti(), at.head, 0, 0, 0)],
   },
@@ -164,17 +164,17 @@ export const SCENES = [
     id: 'question', label: 'I have a question',
     pose(rig) { arm(rig, 'R', V(0.75, 0.55, 0.1), V(-0.55, 0.75, 0.1)); tilt(rig, 0, -0.18); },
     face: { mouth: 13 },
-    props: (at) => [place(questionMark(), at.head, -1.25, 1.25, 0.2, (o) => { o.rotation.z = 0.2; })],
+    props: (at) => [place(questionMark(), at.head, -1.25, 1.05, 0.2, (o) => { o.rotation.z = 0.2; })],
   },
   {
     id: 'thinking', label: 'Thinking it over',
     pose(rig) { arm(rig, 'R', V(0.35, -0.75, 0.5), V(-0.35, 0.85, 0.45)); arm(rig, 'L', V(-0.25, -0.8, 0.5), V(0.55, 0.1, 0.8)); tilt(rig, -0.1, 0.12); },
     face: { mouth: 24 },
-    props: (at) => [place(thought(), at.head, 0.95, 1.05, 0)],
+    props: (at) => [place(thought(), at.head, 0.85, 0.55, 0)],
   },
   {
     id: 'hello', label: 'Hello',
-    pose(rig) { arm(rig, 'R', V(0.85, 0.55, 0.1), V(0.15, 1, 0.05)); tilt(rig, 0, -0.1); },
+    pose(rig) { arm(rig, 'R', V(1, 0.3, 0.15), V(0.3, 1, 0.1)); tilt(rig, 0, -0.1); },
     face: { mouth: 1 },
     props: () => [],
   },
@@ -188,7 +188,7 @@ export const SCENES = [
     id: 'thanks', label: 'Thank you',
     pose(rig) { both(rig, V(0.3, -0.5, 0.8), V(-0.35, 0.5, 0.8)); },
     face: { mouth: 1, eyes: 8 },
-    props: (at) => [place(heart(), mid(at.handL, at.handR), 0, 0.75, 0.25)],
+    props: (at) => [place(heart(), mid(at.handL, at.handR), 0, 0.15, 0.45)],
   },
   {
     id: 'fixing', label: 'Fixing it',
@@ -246,7 +246,7 @@ export function sceneSnapshot(input, id, size = 256) {
     await ready;
     group.rotation.y = -0.22;
     scene.add(group);
-    camera.position.set(0, -0.55, 13.2); camera.lookAt(0, -0.6, 0);
+    camera.position.set(0, -0.95, 11.8); camera.lookAt(0, -1, 0);
     renderer.render(scene, camera);
     const url = renderer.domElement.toDataURL('image/png');
     scene.remove(group);

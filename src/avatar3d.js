@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { loadFaceSprites, drawFace } from './face-sprites.js';
 import { createRig, skinGeometry, bindMesh } from './rig3d.js';
+import { assetUrl, givenAsset } from './assets.js';
 
 const A = window.Avatar;
 const { PI } = Math;
@@ -282,7 +283,9 @@ const shared = (geo, m) => { const o = mesh(geo, m); o.userData.shared = true; r
 // Einmal geladen; alle Figuren teilen die Formen.
 let figureParts = null;
 export function loadFigure() {
-  figureParts ??= new GLTFLoader().loadAsync(new URL('./avatar/figure.glb', import.meta.url).href).then((gltf) => {
+  const bytes = givenAsset('figure.glb');
+  const loader = new GLTFLoader();
+  figureParts ??= (bytes ? loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '') : loader.loadAsync(assetUrl('figure.glb'))).then((gltf) => {
     const parts = {};
     gltf.scene.traverse((o) => { if (o.isMesh) parts[o.name] = o.geometry; });
     if (!['Head', 'Face', 'RigBody', 'RigShirt', 'Trouser', 'Shoe'].every((k) => parts[k])) throw new Error('figure.glb: Teile fehlen');

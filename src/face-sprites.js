@@ -1,5 +1,7 @@
 // BAND AB! – Augen, Brauen und Münder der Figuren aus den Sprite-Atlanten in avatar/ (siehe tools/prepare-face-sprites.py).
 // drawFace malt sie auf die Gesichtstextur (512 × 512, wie faceSvg), thumb zeigt ein einzelnes Teil flach für den Editor.
+import { assetUrl, givenAsset } from './assets.js';
+
 const A = window.Avatar;
 
 const SHEETS = { eyes: ['eyes-line', 'eyes-iris'], brows: ['brows'], mouths: ['mouths'] };
@@ -10,13 +12,13 @@ const image = (name) => new Promise((resolve, reject) => {
   const img = new Image();
   img.onload = () => resolve(img);
   img.onerror = () => reject(new Error(`avatar/${name}.png fehlt`));
-  img.src = new URL(`./avatar/${name}.png`, import.meta.url).href;
+  img.src = assetUrl(`${name}.png`);
 });
 
 /** Lädt Bilder und Namen einmal; danach sind drawFace und thumb sofort bereit. */
 export function loadFaceSprites() {
   loading ??= Promise.all(Object.entries(SHEETS).map(async ([name, layers]) => {
-    const meta = await (await fetch(new URL(`./avatar/${name}.json`, import.meta.url))).json();
+    const meta = givenAsset(`${name}.json`) ?? (await (await fetch(assetUrl(`${name}.json`))).json());
     const imgs = await Promise.all(layers.map(image));
     sheets[name] = { meta, imgs, w: meta.cell || meta.cellWidth, h: meta.cell || meta.cellHeight };
   }));

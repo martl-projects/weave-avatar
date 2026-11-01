@@ -6,8 +6,8 @@ Gameshow (BAND AB!) draws its contestants with it.
 
 ## Where it lives
 
-The figure lives only here. A tag builds a release (`weave-avatar.tar.gz`: `weave-avatar.js`, its files in `avatar/`,
-this README); Weave ships one release, pinned by the archive's SHA-256 in its `packages/shipped/pinned.json`. A new
+The figure lives only here. A tag builds a release (`weave-avatar.tar.gz`: `weave-avatar.js` and this README); Weave
+ships one release, pinned by the archive's SHA-256 in its `packages/shipped/pinned.json`. A new
 version: tag it here, then move the pin there.
 
 ## What it holds
@@ -20,6 +20,7 @@ version: tag it here, then move the pin there.
 - `src/face-sprites.js`: eyes, brows and mouths from the sprite sheets; `thumb()` for editors.
 - `src/scenes.js`: the scenes (`SCENES`: id, label, pose, face, props), `buildScene()`, `sceneSnapshot()`. A scene's id
   stays forever; new ones come at the end.
+- `src/assets.js`: where the files come from (built in, or `avatar/` next to the modules).
 - `src/avatar/`: `figure.glb` (head, face layer, body, hair styles) and the face sprite sheets.
 - `art/` and `tools/`: their sources (`BaseBody.blend`, the sheets) and the scripts that make them
   (`tools/export-figure.py` in Blender, `tools/prepare-face-sprites.py` with Pillow and NumPy).
@@ -31,7 +32,9 @@ npm install
 npm run build
 ```
 
-`dist/weave-avatar.js` is one ES module with three.js inside; it finds its files in `avatar/` next to it.
+`dist/weave-avatar.js` is one ES module with three.js and the files in `src/avatar/` built in: it needs nothing next
+to it, and works from `file://` too (no fetch, no images that lock a canvas). The modules in `src/` also run as they
+are, next to `avatar/`, with an import map for `three` (the Gameshow).
 
 ```js
 const { Avatar, snapshot, sceneSnapshot, SCENES } = await import('./weave-avatar.js');
