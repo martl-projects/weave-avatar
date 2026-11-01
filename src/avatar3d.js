@@ -70,6 +70,7 @@ export function faceTexture(a) {
   });
   const ready = Promise.all([svg, loadFaceSprites().catch(() => false)]).then(([img, sprites]) => {
     const g = c.getContext('2d');
+    if (screen && a.glow) { glowFace(g, c.width, a, img, sprites); crt(g, c.width); tex.needsUpdate = true; return; }
     if (screen) { g.fillStyle = A.COLORS.screenColor[a.screenColor]; g.fillRect(0, 0, c.width, 512); g.translate((c.width - 512) / 2, 0); }
     if (sprites === false) { if (img) g.drawImage(img, 0, 0, 512, 512); }
     else drawFace(g, a, img);
@@ -77,6 +78,40 @@ export function faceTexture(a) {
     tex.needsUpdate = true;
   });
   return { tex, ready };
+}
+
+/**
+ * Das Gesicht auf einem dunklen Bildschirm (glow): was an den Sprites schwarz ist, leuchtet in der Farbe des Bildschirms,
+ * kräftig gemacht (sein Pastellblau wird Hellblau); Weiß nur schwach, Farben bleiben (Iris); darunter ein weicher Schein (Bloom).
+ */
+function glowColor(hex) {
+  const c = new THREE.Color(hex), hsl = {};
+  c.getHSL(hsl, THREE.SRGBColorSpace);
+  c.setHSL(hsl.h, hsl.s < 0.05 ? 0 : 1, hsl.s < 0.05 ? 0.92 : 0.65, THREE.SRGBColorSpace);   // Weiß bleibt weiß
+  return c.getStyle(THREE.SRGBColorSpace).match(/\d+/g).map(Number);
+}
+function glowFace(g, w, a, img, sprites) {
+  const GLOW = glowColor(A.COLORS.screenColor[a.screenColor]);
+  const f = document.createElement('canvas'); f.width = f.height = 512;
+  const fg = f.getContext('2d');
+  if (sprites === false) { if (img) fg.drawImage(img, 0, 0, 512, 512); } else drawFace(fg, a, img);
+  const d = fg.getImageData(0, 0, 512, 512), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    if (!p[i + 3]) continue;
+    const L = (0.3 * p[i] + 0.59 * p[i + 1] + 0.11 * p[i + 2]) / 255;
+    for (let k = 0; k < 3; k++) p[i + k] = GLOW[k] * (1 - L) + p[i + k] * L;
+    p[i + 3] *= 1 - 0.8 * L * L;
+  }
+  fg.putImageData(d, 0, 0);
+  const bg = g.createRadialGradient(w / 2, 256, 40, w / 2, 256, w / 2 + 60);
+  bg.addColorStop(0, '#111a2e'); bg.addColorStop(1, '#05070d');
+  g.fillStyle = bg; g.fillRect(0, 0, w, 512);
+  const x = (w - 512) / 2;
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.filter = 'blur(14px)'; g.globalAlpha = 0.9; g.drawImage(f, x, 0);
+  g.filter = 'blur(5px)'; g.globalAlpha = 0.8; g.drawImage(f, x, 0);
+  g.restore();
+  g.drawImage(f, x, 0);
 }
 
 /** Wie eine alte Bildröhre: feine Zeilen, zu den Ecken dunkler. */
@@ -358,7 +393,7 @@ const robotMaterial = (parts, color) => {
 function agentHead(head, a, parts, tex) {
   tex.flipY = false; tex.needsUpdate = true;          // glTF-UVs: v = 0 ist oben
   head.add(shared(parts.AgentHead, robotMaterial(parts, A.COLORS.frameColor[a.frameColor])));
-  const glass = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 });
+  const glass = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: a.glow ? 1 : 0.55, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 });
   const screen = shared(parts.AgentScreen, glass); screen.castShadow = false; head.add(screen);
   head.userData.face = screen;
 }

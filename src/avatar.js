@@ -22,11 +22,12 @@
     nose: 4, mouth: 32, beard: 4,
     glasses: 5, hat: 5, propColor: PROPS.length,
     shirt: 4, shirtColor: SHIRT.length,
-    // Kopf: 0 ein Mensch, 1 ein Bildschirm (screen: Monitor, Röhrenfernseher, Tablet; seine Farben)
-    head: 2, screen: 3, screenColor: SCREEN.length, frameColor: FRAME.length,
+    // Kopf: 0 ein Mensch, 1 ein Bildschirm (screen: Monitor, Röhrenfernseher, Tablet; seine Farben; glow: 0 hell,
+    // 1 dunkel mit leuchtendem Gesicht in der Farbe des Bildschirms)
+    head: 2, screen: 3, screenColor: SCREEN.length, frameColor: FRAME.length, glow: 2,
   };
   /** Die Teile eines Bildschirmkopfs: random() wählt sie nach allen anderen, damit Figuren aus einem Text bleiben, wie sie waren. */
-  const SCREEN_PARTS = ['head', 'screen', 'screenColor', 'frameColor'];
+  const SCREEN_PARTS = ['head', 'screen', 'screenColor', 'frameColor', 'glow'];
   const COLORS = { skin: SKIN, hairColor: HAIR, eyeColor: EYES, shirtColor: SHIRT, propColor: PROPS, screenColor: SCREEN, frameColor: FRAME };
 
   // Feinjustierung wie bei Miis: Anzahl der Stufen; die mittlere ist die gezeichnete Lage (Standard für alte Figuren).
