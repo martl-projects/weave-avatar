@@ -59,21 +59,33 @@ const mesh = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m)
 // ── Gesicht → Textur: Augen, Brauen und Mund als Sprites, Wangen und Bart als Zeichnung (avatar.js)
 export function faceTexture(a) {
   const c = document.createElement('canvas'); c.width = c.height = 512;
+  const screen = a.head === 1;
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
   const svg = new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(A.faceSvg(a, 512));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(A.faceSvg(screen ? { ...a, blush: 0, beard: 0 } : a, 512));
   });
   const ready = Promise.all([svg, loadFaceSprites().catch(() => false)]).then(([img, sprites]) => {
     const g = c.getContext('2d');
+    if (screen) { g.fillStyle = A.COLORS.screenColor[a.screenColor]; g.fillRect(0, 0, 512, 512); }
     if (sprites === false) { if (img) g.drawImage(img, 0, 0, 512, 512); }
     else drawFace(g, a, img);
+    if (screen) crt(g);
     tex.needsUpdate = true;
   });
   return { tex, ready };
+}
+
+/** Wie eine alte Bildröhre: feine Zeilen, zu den Ecken dunkler. */
+function crt(g) {
+  g.fillStyle = 'rgba(0, 0, 0, 0.07)';
+  for (let y = 0; y < 512; y += 4) g.fillRect(0, y, 512, 2);
+  const v = g.createRadialGradient(256, 256, 150, 256, 256, 380);
+  v.addColorStop(0, 'rgba(0, 0, 0, 0)'); v.addColorStop(1, 'rgba(0, 0, 0, 0.35)');
+  g.fillStyle = v; g.fillRect(0, 0, 512, 512);
 }
 
 // ── Oberteil als Textur um den Rumpf (Vorderseite in der Mitte)
@@ -237,7 +249,8 @@ export function buildAvatar(input, opts = {}) {
   nose.position.copy(nosePos).add(new THREE.Vector3(0, 0, a.nose === 3 ? 0.12 : 0.02));
   nose.scale.multiplyScalar(1.12 ** A.offset(a, 'noseSize'));
   const specs = glasses(a, shape); head.userData.glasses = specs;   // der Moderator färbt seine um
-  fitFace.add(nose, specs); fitHair.add(hat(a));
+  const screen = a.head === 1;                         // ein Bildschirm statt Gesicht: keine Nase, Brille, Frisur, Hut
+  if (!screen) { fitFace.add(nose, specs); fitHair.add(hat(a)); }
 
   // Körper mit Skelett (rig3d.js): Kopf und Hals hängen an den Knochen, damit sie mitgehen (Ragdoll)
   let body = null, rig = null;
@@ -251,8 +264,9 @@ export function buildAvatar(input, opts = {}) {
   // Das Modell aus figure.glb; lädt es nicht, Kugelkopf und Körper aus Grundkörpern
   const built = loadFigure().then(
     (parts) => {
-      modelHead(head, [fitFace, fitHair], parts, shape, skin, face.tex);
-      if (a.hair) {
+      if (screen) screenHead(head, a, face.tex);
+      else modelHead(head, [fitFace, fitHair], parts, shape, skin, face.tex);
+      if (a.hair && !screen) {
         const name = `Hair${String(a.hair).padStart(2, '0')}`;
         head.add(shared(shapedPart(parts, name, shape), hm));
         fitHair.scale.multiply(hairBulk(parts, name));   // Hüte sitzen auf der Frisur, nicht in ihr
@@ -263,8 +277,9 @@ export function buildAvatar(input, opts = {}) {
       }
     },
     () => {
-      sphereHead(head, shape, skin, face.tex);
-      fitHair.add(hair({ ...a, hair: a.hair ? ((a.hair - 1) % 9) + 1 : 0 }, hm, shape));   // die gebauten Frisuren 1–9
+      if (screen) screenHead(head, a, face.tex);
+      else sphereHead(head, shape, skin, face.tex);
+      if (!screen) fitHair.add(hair({ ...a, hair: a.hair ? ((a.hair - 1) % 9) + 1 : 0 }, hm, shape));   // die gebauten Frisuren 1–9
       if (body) {                                       // ohne Modell kein Skelett
         body.remove(rig.root); group.userData.rig = rig = null;
         group.add(neck); neck.position.set(0, -1.1, 0);
@@ -356,6 +371,32 @@ function modelBody(g, parts, a, skinHex, skin, rig) {
   );
 }
 
+/**
+ * Ein Bildschirm als Kopf (Agenten, Sessions): 0 ein Monitor, 1 ein Röhrenfernseher mit Antennen, 2 ein Tablet; das
+ * Gesicht leuchtet auf dem Bildschirm (die Sprites der Menschen, auf seiner Farbe).
+ */
+function screenHead(head, a, tex) {
+  const frame = mat(A.COLORS.frameColor[a.frameColor], { roughness: 0.4, metalness: 0.15 });
+  const dark = mat(A.shade(A.COLORS.frameColor[a.frameColor], 0.7), { roughness: 0.5 });
+  const glass = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.25 });
+  const [w, h, d, sw, sh] = [[2.3, 1.95, 0.55, 1.95, 1.6], [2.2, 2.0, 1.25, 1.7, 1.5], [1.75, 2.25, 0.16, 1.55, 2.0]][a.screen];
+  const box = mesh(new THREE.BoxGeometry(w, h, d), frame, 0, 0.1, -d / 2 + 0.3);
+  head.add(box);
+  // Gewölbt wie eine Bildröhre (der Fernseher am meisten): die Mitte kommt nach vorn.
+  const curve = [0.12, 0.22, 0.04][a.screen];
+  const geo = new THREE.PlaneGeometry(sw, sh, 24, 24), pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const x = pos.getX(i) / (sw / 2), y = pos.getY(i) / (sh / 2); pos.setZ(i, curve * (1 - (x * x + y * y) / 2)); }
+  geo.computeVertexNormals();
+  const glassMesh = new THREE.Mesh(geo, glass); glassMesh.position.set(0, 0.1, 0.3); head.add(glassMesh);
+  head.userData.face = glassMesh;
+  if (a.screen === 0) head.add(mesh(new THREE.BoxGeometry(w * 0.3, 0.09, 0.1), dark, 0, -h / 2 + 0.03, 0.31));                 // Leiste unten
+  if (a.screen === 1) {                                                                                                       // Antennen
+    for (const s of [-1, 1]) { const ant = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 8), dark, s * 0.35, h / 2 + 0.45, -0.3); ant.rotation.z = -s * 0.5; head.add(ant); head.add(mesh(new THREE.SphereGeometry(0.07, 10, 8), frame, s * 0.57, h / 2 + 0.85, -0.3)); }
+    head.add(mesh(new THREE.SphereGeometry(0.08, 10, 8), dark, w / 2 - 0.25, -h / 2 + 0.3, 0.33));                           // ein Knopf
+  }
+  if (a.screen === 2) head.add(mesh(new THREE.SphereGeometry(0.05, 10, 8), dark, 0, h / 2 - 0.08, 0.1));                     // Kamera
+}
+
 /** Der Kugelkopf (falls figure.glb nicht lädt). */
 function sphereHead(head, shape, skin, tex) {
   head.add(mesh(deformGeometry(new THREE.SphereGeometry(1, 64, 40), shape), skin));
@@ -420,7 +461,7 @@ export function snapshot(input, kind = 'head') {
       group.position.x = -c.x;
       const fit = (h, w) => (Math.max(h, w) / 2 / Math.tan(PI / 12)) * 1.08;
       // face: vom Kinn bis über die Brauen, so breit wie der Kopf; head: alles mit Frisur und Hut
-      const top = kind === 'face' ? Math.min(box.max.y, 0.95) : box.max.y, y = (box.min.y + top) / 2;
+      const top = kind === 'face' && A.clean(input).head !== 1 ? Math.min(box.max.y, 0.95) : box.max.y, y = (box.min.y + top) / 2;   // ein Bildschirm: ganz
       camera.position.set(0, y, c.z + fit(top - box.min.y, s.x));
       camera.lookAt(0, y, c.z);
     }

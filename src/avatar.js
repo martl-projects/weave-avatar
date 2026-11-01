@@ -10,6 +10,9 @@
   const EYES = ['#3b2a20', '#2f6fb3', '#3c8a4a', '#8a5f26', '#6b6b6b', '#8e4fd0'];
   const SHIRT = ['#ff3d6e', '#3ab7ff', '#ffd23f', '#3ddc84', '#9b5cff', '#ff8a3d', '#f4f4f4', '#2a2a3a', '#14b8a6', '#c4122f'];
   const PROPS = ['#ff3fd0', '#34e4ff', '#ffd23f', '#16161c', '#ffffff', '#ff8a3d'];
+  // Bildschirmköpfe (Agenten, Sessions): helle Bildschirme (die Gesichts-Sprites haben dunkle Linien), bunte Gehäuse.
+  const SCREEN = ['#cfeaff', '#d4f7e3', '#fff4d6', '#ffe0ec', '#e6dcff', '#f6f8fb', '#ffe2c4', '#d9f2ff'];
+  const FRAME = ['#2a2a3a', '#c9ccd3', '#f4f4f4', '#ff3d6e', '#3ab7ff', '#ffd23f', '#3ddc84', '#9b5cff', '#ff8a3d', '#14b8a6'];
 
   // Teil → Anzahl der Varianten (Formen) bzw. Farben
   const PARTS = {
@@ -19,8 +22,12 @@
     nose: 4, mouth: 32, beard: 4,
     glasses: 5, hat: 5, propColor: PROPS.length,
     shirt: 4, shirtColor: SHIRT.length,
+    // Kopf: 0 ein Mensch, 1 ein Bildschirm (screen: Monitor, Röhrenfernseher, Tablet; seine Farben)
+    head: 2, screen: 3, screenColor: SCREEN.length, frameColor: FRAME.length,
   };
-  const COLORS = { skin: SKIN, hairColor: HAIR, eyeColor: EYES, shirtColor: SHIRT, propColor: PROPS };
+  /** Die Teile eines Bildschirmkopfs: random() wählt sie nach allen anderen, damit Figuren aus einem Text bleiben, wie sie waren. */
+  const SCREEN_PARTS = ['head', 'screen', 'screenColor', 'frameColor'];
+  const COLORS = { skin: SKIN, hairColor: HAIR, eyeColor: EYES, shirtColor: SHIRT, propColor: PROPS, screenColor: SCREEN, frameColor: FRAME };
 
   // Feinjustierung wie bei Miis: Anzahl der Stufen; die mittlere ist die gezeichnete Lage (Standard für alte Figuren).
   // Y: höher/tiefer, Gap: Abstand der beiden Hälften, Size: Größe, Rot: Drehung (bei Paaren gespiegelt).
@@ -54,12 +61,15 @@
     const r = rnd || Math.random;
     const pick = (n) => Math.floor(r() * n);
     const a = {};
-    for (const [k, n] of Object.entries(PARTS)) a[k] = pick(n);
+    for (const [k, n] of Object.entries(PARTS)) if (!SCREEN_PARTS.includes(k)) a[k] = pick(n);
     // Seltenes seltener: meist ohne Bart, Brille, Hut, mit natürlicher Haarfarbe
     if (r() < 0.7) a.beard = 0;
     if (r() < 0.65) a.glasses = 0;
     if (r() < 0.7) a.hat = 0;
     if (r() < 0.75) a.hairColor = pick(7);
+    // Ein Mensch; für einen Bildschirmkopf schon seine Form und Farben (screenOf)
+    a.head = 0;
+    a.screen = pick(PARTS.screen); a.screenColor = pick(PARTS.screenColor); a.frameColor = pick(PARTS.frameColor);
     return a;
   }
 
@@ -109,7 +119,10 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="${size || 512}" height="${size || 512}">${parts.join('')}</svg>`;
   }
 
-  const Avatar = { PARTS, ADJUST, COLORS, offset, clean, random, fromSeed, key, shade, faceSvg };
+  /** Ein Bildschirmkopf für einen Text (ein Agent, eine Session): der Körper wie fromSeed, der Kopf ein Bildschirm. */
+  const screenFromSeed = (text) => ({ ...fromSeed(text), head: 1 });
+
+  const Avatar = { PARTS, ADJUST, COLORS, offset, clean, random, fromSeed, screenFromSeed, key, shade, faceSvg };
   if (typeof module !== 'undefined' && module.exports) module.exports = Avatar;
   else root.Avatar = Avatar;
 })(typeof window !== 'undefined' ? window : globalThis);
