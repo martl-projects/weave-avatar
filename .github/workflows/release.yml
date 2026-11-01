@@ -1,0 +1,25 @@
+name: release
+
+# A tag (v1.0) builds dist/ (weave-avatar.js, its files, README.md) and attaches it to a GitHub release as
+# weave-avatar.tar.gz. Weave ships that release, pinned by its SHA-256 (packages/shipped/pinned.json).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: tar czf weave-avatar.tar.gz -C dist .
+      - run: gh release create "$GITHUB_REF_NAME" weave-avatar.tar.gz --title "$GITHUB_REF_NAME" --notes "Built from $GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}

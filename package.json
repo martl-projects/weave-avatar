@@ -1,0 +1,14 @@
+{
+  "name": "weave-avatar",
+  "version": "1.0.0",
+  "description": "Weave avatars: a Mii-style 3D figure from a few numbers, and scenes (a pose and things around it) for decorating posts.",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "three": "0.170.0"
+  }
+}
