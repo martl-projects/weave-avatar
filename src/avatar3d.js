@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { loadFaceSprites, drawFace } from './face-sprites.js';
-import { createRig, skinGeometry, skinAgent, bindMesh, AGENT_JOINT } from './rig3d.js';
+import { createRig, skinGeometry, skinByNames, bindMesh, AGENT_JOINT } from './rig3d.js';
 import { assetUrl, givenAsset } from './assets.js';
 import { shotCache } from './shots.js';
 
@@ -315,33 +315,56 @@ export function loadFigure() {
   return figureParts;
 }
 
-// ── Der Roboter der Agenten aus avatar/agent.glb (tools/export-agent.py aus art/agent.fbx), in Figuren-Maßen:
-// AgentHead (Kopf mit Kopfhörern und Antennen, Kopfmitte bei 0), AgentScreen (der Bildschirm darin, 3:2, UVs von vorn),
-// AgentBody (Hals, Rumpf, Arme, Beine in der T-Pose; Skelett mit AGENT_JOINT, Gewichte: skinAgent).
+// ── Der Roboter der Agenten aus avatar/agent.glb (tools/export-agent.py), in Figuren-Maßen:
+// AgentHead (der Kopf, Kopfmitte bei 0), AgentScreen (die Glaskuppel davor, 3:2, UVs von vorn), AgentBody (Hals, Rumpf,
+// Arme, Räder in der T-Pose; die Gewichte stecken darin, auf Knochen mit den Namen aus rig3d.js; Skelett mit AGENT_JOINT).
+// Die Textur (agent.png, tools/paint-agent.py): ihre Farben, und wo die Farbe des Roboters sie einfärbt (Alpha).
 let agentParts = null;
 export function loadAgent() {
   const bytes = givenAsset('agent.glb');
   const loader = new GLTFLoader();
-  agentParts ??= (bytes ? loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '') : loader.loadAsync(assetUrl('agent.glb'))).then((gltf) => {
+  agentParts ??= (bytes ? loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '') : loader.loadAsync(assetUrl('agent.glb'))).then(async (gltf) => {
     const parts = {};
-    gltf.scene.traverse((o) => { if (o.isMesh) parts[o.name] = o.geometry; });
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      parts[o.name] = o.isSkinnedMesh ? skinByNames(o.geometry, o.skeleton.bones.map((b) => b.name)) : o.geometry;
+    });
     if (!['AgentHead', 'AgentScreen', 'AgentBody'].every((k) => parts[k])) throw new Error('agent.glb: Teile fehlen');
+    parts.map = await new THREE.TextureLoader().loadAsync(assetUrl('agent.png'));
+    parts.map.colorSpace = THREE.SRGBColorSpace; parts.map.flipY = false; parts.map.anisotropy = 4;
     return parts;
   });
   return agentParts;
 }
 
-/** Der Kopf des Roboters in der Rahmenfarbe; das Gesicht leuchtet auf seinem Bildschirm (wie screenHead). */
+// Matt wie die Menschen; die Textur färbt nur, wo ihr Alpha es sagt, in der Farbe des Roboters (tint).
+const robotMats = new Map();
+const robotMaterial = (parts, color) => {
+  if (!robotMats.has(color)) {
+    const m = new THREE.MeshStandardMaterial({ map: parts.map, roughness: 0.6 });
+    const tint = { value: new THREE.Color(color) };
+    m.onBeforeCompile = (s) => {
+      s.uniforms.tint = tint;
+      s.fragmentShader = 'uniform vec3 tint;\n' + s.fragmentShader.replace('#include <map_fragment>',
+        'vec4 texel = texture2D( map, vMapUv );\ndiffuseColor.rgb *= mix( texel.rgb, texel.rgb * tint, texel.a );');
+    };
+    m.customProgramCacheKey = () => 'robot';
+    robotMats.set(color, m);
+  }
+  return robotMats.get(color);
+};
+
+/** Der Kopf des Roboters in seiner Farbe; das Gesicht leuchtet auf seinem Bildschirm (wie screenHead). */
 function agentHead(head, a, parts, tex) {
   tex.flipY = false; tex.needsUpdate = true;          // glTF-UVs: v = 0 ist oben
-  head.add(shared(parts.AgentHead, mat(A.COLORS.frameColor[a.frameColor], { roughness: 0.4, metalness: 0.15 })));
+  head.add(shared(parts.AgentHead, robotMaterial(parts, A.COLORS.frameColor[a.frameColor])));
   const glass = new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -2 });
   const screen = shared(parts.AgentScreen, glass); screen.castShadow = false; head.add(screen);
   head.userData.face = screen;
 }
 
 function agentBody(g, parts, a, rig) {
-  g.add(bindMesh(rig, skinAgent(parts.AgentBody), mat(A.COLORS.frameColor[a.frameColor], { roughness: 0.4, metalness: 0.15 })));
+  g.add(bindMesh(rig, parts.AgentBody, robotMaterial(parts, A.COLORS.frameColor[a.frameColor])));
 }
 
 // Der Modellkopf gegenüber der Kugel mit Kopfform 0 (1 × 1.05 × 0.97): Breite, Höhe, Tiefe des Gesichts (Nase, Brille);

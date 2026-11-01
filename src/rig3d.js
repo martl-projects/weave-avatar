@@ -17,11 +17,15 @@ export const JOINT = {
   shoulder: V(0.675, -1.325, 0.125), elbowX: 1.075, wristX: 1.475, handX: 1.725,
   hip: V(0.3, -2.47, 0.1), knee: -2.97, ankle: -3.47, foot: V(0.395, -3.6, 0.385),
 };
-/** Die Gelenke des Roboters der Agenten (agent.glb, tools/export-agent.py): kürzerer Rumpf, längere Beine. */
+/**
+ * Die Gelenke des Roboters der Agenten (agent.glb, tools/export-agent.py): klein, auf zwei Kugelrädern statt Beinen
+ * (die Beinknochen tragen nichts; Hüfte und Knie sitzen an den Rädern, damit Ragdoll und Boden stimmen). headY: die
+ * Kopfmitte (bei den Menschen 0); sit: so weit sinkt die Hüfte beim Sitzen (der Roboter rollt auf den Hocker: hoch).
+ */
 export const AGENT_JOINT = {
-  hips: V(0, -1.96, 0.05), chest: V(0, -1.48, 0.05), neck: V(0, -0.91, 0.03),
-  shoulder: V(0.63, -1.22, 0.03), elbowX: 1.15, wristX: 1.43, handX: 1.79,
-  hip: V(0.36, -2.17, 0.05), knee: -2.82, ankle: -3.34, foot: V(0.43, -3.63, 0.19),
+  hips: V(0, -3.19, 0), chest: V(0, -3.02, 0), neck: V(0, -2.11, 0), headY: -1.166,
+  shoulder: V(0.49, -2.49, 0.11), elbowX: 0.95, wristX: 1.28, handX: 1.65,
+  hip: V(0.44, -3.36, -0.19), knee: -3.5, ankle: -3.6, foot: V(0.44, -3.72, -0.05), sit: -0.68,
 };
 export const ARM_DOWN = THREE.MathUtils.degToRad(70);   // Ruhelage der Arme: so weit aus der Waagerechten nach unten
 
@@ -60,31 +64,13 @@ export function skinGeometry(geo, { neck = false } = {}) {
   return geo;
 }
 
-/**
- * Gewichte für den Körper des Roboters (AgentBody, ohne Kopf): starre Teile, die an den schmalen Stellen knicken –
- * Schulterkugel, Mitte des Arms, Taille, Hüfte, Knie.
- */
-export function skinAgent(geo) {
+/** Gewichte, die schon in der Form stecken (glTF): ihre Knochen-Nummern nach den Namen (names) auf die des Skeletts. */
+export function skinByNames(geo, names) {
   if (skinned.has(geo)) return geo;
-  const J = AGENT_JOINT, pos = geo.attributes.position, n = pos.count;
-  const index = new Uint16Array(n * 4), weight = new Float32Array(n * 4);
-  const set = (i, list) => { list.forEach(([b, w], k) => { index[i * 4 + k] = b; weight[i * 4 + k] = w; }); };
-  for (let i = 0; i < n; i++) {
-    const x = pos.getX(i), y = pos.getY(i), ax = Math.abs(x), R = x > 0;
-    const arm = y > -1.8 ? smooth(0.5, 0.58, ax) : 0;
-    if (arm > 0) {                                      // Arm: Brust → Schulter (mit der Kugel) → Ellbogen (mit der Hand)
-      const e = smooth(J.elbowX - 0.06, J.elbowX + 0.06, ax);
-      set(i, [[B.chest, 1 - arm], [R ? B.shoulderR : B.shoulderL, arm * (1 - e)], [R ? B.elbowR : B.elbowL, arm * e]]);
-    } else if (y < J.hips.y - 0.12) {                   // Bein: Becken → Oberschenkel → Unterschenkel mit Stiefel
-      const leg = smooth(J.hip.y + 0.05, J.hip.y - 0.12, y), k = smooth(J.knee + 0.02, J.knee - 0.08, y);
-      set(i, [[B.hips, 1 - leg], [R ? B.thighR : B.thighL, leg * (1 - k)], [R ? B.shinR : B.shinL, leg * k]]);
-    } else {                                            // Rumpf: Becken → Brust an der Taille; der Hals gehört zum Kopf
-      const c = smooth(J.hips.y + 0.02, J.hips.y + 0.14, y), h = ax < 0.3 ? smooth(J.neck.y - 0.08, J.neck.y - 0.02, y) : 0;
-      set(i, [[B.hips, 1 - c], [B.chest, c * (1 - h)], [B.head, c * h]]);
-    }
-  }
-  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(index, 4));
-  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weight, 4));
+  const at = names.map((n) => B[n] ?? 0), index = geo.attributes.skinIndex;
+  const out = new Uint16Array(index.count * 4);
+  for (let i = 0; i < out.length; i++) out[i] = at[index.array[i]];
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(out, 4));
   skinned.add(geo);
   return geo;
 }
@@ -113,7 +99,7 @@ export function createRig(J = JOINT) {
     handL: anchor(elbowL, V(-(J.handX - J.elbowX), 0, 0)), handR: anchor(elbowR, V(J.handX - J.elbowX, 0, 0)),
     footL: anchor(shinL, V(-(J.foot.x - J.hip.x), J.foot.y - J.knee, J.foot.z - J.hip.z)),   // Mitte des Schuhs
     footR: anchor(shinR, V(J.foot.x - J.hip.x, J.foot.y - J.knee, J.foot.z - J.hip.z)),
-    head: anchor(head, V(0, 0, 0).sub(J.neck)),     // Kopfmitte
+    head: anchor(head, V(0, J.headY ?? 0, 0).sub(J.neck)),     // Kopfmitte
   };
   hips.updateMatrixWorld(true);                         // T-Pose merken, bevor das Skelett die Umkehrungen rechnet
   const bones = { hips, chest, head, shoulderL, elbowL, shoulderR, elbowR, thighL, shinL, thighR, shinR };
