@@ -18,14 +18,13 @@ export const JOINT = {
   hip: V(0.3, -2.47, 0.1), knee: -2.97, ankle: -3.47, foot: V(0.395, -3.6, 0.385),
 };
 /**
- * Die Gelenke des Roboters der Agenten (agent.glb, tools/export-agent.py): klein, auf zwei Kugelrädern statt Beinen
- * (die Beinknochen tragen nichts; Hüfte und Knie sitzen an den Rädern, damit Ragdoll und Boden stimmen). headY: die
- * Kopfmitte (bei den Menschen 0); sit: so weit sinkt die Hüfte beim Sitzen (der Roboter rollt auf den Hocker: hoch).
+ * Die Gelenke des Roboters der Agenten (agent.glb; tools/export-agent.py druckt sie): klein und gedrungen, kurze Beine.
+ * headY: die Kopfmitte (bei den Menschen 0).
  */
 export const AGENT_JOINT = {
-  hips: V(0, -3.19, 0), chest: V(0, -3.02, 0), neck: V(0, -2.11, 0), headY: -1.166,
-  shoulder: V(0.49, -2.49, 0.11), elbowX: 0.95, wristX: 1.28, handX: 1.65,
-  hip: V(0.44, -3.36, -0.19), knee: -3.5, ankle: -3.6, foot: V(0.44, -3.72, -0.05), sit: -0.68,
+  hips: V(0, -2.583, 0.04), chest: V(0, -2.268, 0.04), neck: V(0, -1.894, 0.024), headY: -1.166,
+  shoulder: V(0.504, -2.097, 0.024), elbowX: 0.92, wristX: 1.144, handX: 1.432,
+  hip: V(0.288, -2.721, 0.04), knee: -3.148, ankle: -3.489, foot: V(0.344, -3.68, 0.152),
 };
 export const ARM_DOWN = THREE.MathUtils.degToRad(70);   // Ruhelage der Arme: so weit aus der Waagerechten nach unten
 

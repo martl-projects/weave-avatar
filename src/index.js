@@ -4,7 +4,6 @@ import Avatar from './global.js';
 import { provideAssets } from './assets.js';
 import figure from './avatar/figure.glb';
 import agent from './avatar/agent.glb';
-import agentPng from './avatar/agent.png';
 import eyes from './avatar/eyes.json';
 import brows from './avatar/brows.json';
 import mouths from './avatar/mouths.json';
@@ -14,7 +13,7 @@ import browsPng from './avatar/brows.png';
 import mouthsPng from './avatar/mouths.png';
 
 provideAssets({
-  'figure.glb': figure, 'agent.glb': agent, 'agent.png': agentPng,
+  'figure.glb': figure, 'agent.glb': agent,
   'eyes.json': eyes, 'brows.json': brows, 'mouths.json': mouths,
   'eyes-line.png': eyesLine, 'eyes-iris.png': eyesIris, 'brows.png': browsPng, 'mouths.png': mouthsPng,
 });

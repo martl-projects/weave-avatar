@@ -351,37 +351,35 @@ export function loadFigure() {
 }
 
 // ── Der Roboter der Agenten aus avatar/agent.glb (tools/export-agent.py), in Figuren-Maßen:
-// AgentHead (der Kopf, Kopfmitte bei 0), AgentScreen (die Glaskuppel davor, 3:2, UVs von vorn), AgentBody (Hals, Rumpf,
-// Arme, Räder in der T-Pose; die Gewichte stecken darin, auf Knochen mit den Namen aus rig3d.js; Skelett mit AGENT_JOINT).
-// Die Textur (agent.png, tools/paint-agent.py): ihre Farben, und wo die Farbe des Roboters sie einfärbt (Alpha).
+// AgentHead (der Kopf mit Kopfhörern und Antennen, Kopfmitte bei 0), AgentScreen (der Bildschirm darin, 3:2, UVs von vorn),
+// AgentBody (Hals, Rumpf, Arme, Beine in der T-Pose; die Gewichte stecken darin, auf Knochen mit den Namen aus rig3d.js;
+// Skelett mit AGENT_JOINT). Von Hand bemalt: die Farben in den Ecken (COLOR_0), und wo die Farbe des Roboters sie einfärbt (Alpha).
 let agentParts = null;
 export function loadAgent() {
   const bytes = givenAsset('agent.glb');
   const loader = new GLTFLoader();
-  agentParts ??= (bytes ? loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '') : loader.loadAsync(assetUrl('agent.glb'))).then(async (gltf) => {
+  agentParts ??= (bytes ? loader.parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '') : loader.loadAsync(assetUrl('agent.glb'))).then((gltf) => {
     const parts = {};
     gltf.scene.traverse((o) => {
       if (!o.isMesh) return;
       parts[o.name] = o.isSkinnedMesh ? skinByNames(o.geometry, o.skeleton.bones.map((b) => b.name)) : o.geometry;
     });
     if (!['AgentHead', 'AgentScreen', 'AgentBody'].every((k) => parts[k])) throw new Error('agent.glb: Teile fehlen');
-    parts.map = await new THREE.TextureLoader().loadAsync(assetUrl('agent.png'));
-    parts.map.colorSpace = THREE.SRGBColorSpace; parts.map.flipY = false; parts.map.anisotropy = 4;
     return parts;
   });
   return agentParts;
 }
 
-// Matt wie die Menschen; die Textur färbt nur, wo ihr Alpha es sagt, in der Farbe des Roboters (tint).
+// Matt wie die Menschen; die Bemalung färbt nur, wo ihr Alpha es sagt, in der Farbe des Roboters (tint).
 const robotMats = new Map();
 const robotMaterial = (parts, color) => {
   if (!robotMats.has(color)) {
-    const m = new THREE.MeshStandardMaterial({ map: parts.map, roughness: 0.6 });
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 });
     const tint = { value: new THREE.Color(color) };
     m.onBeforeCompile = (s) => {
       s.uniforms.tint = tint;
-      s.fragmentShader = 'uniform vec3 tint;\n' + s.fragmentShader.replace('#include <map_fragment>',
-        'vec4 texel = texture2D( map, vMapUv );\ndiffuseColor.rgb *= mix( texel.rgb, texel.rgb * tint, texel.a );');
+      s.fragmentShader = 'uniform vec3 tint;\n' + s.fragmentShader.replace('#include <color_fragment>',
+        'diffuseColor.rgb *= mix( vColor.rgb, vColor.rgb * tint, vColor.a );');
     };
     m.customProgramCacheKey = () => 'robot';
     robotMats.set(color, m);
